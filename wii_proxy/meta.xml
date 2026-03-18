@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<app version="1">
+  <name>DS Remote Desktop</name>
+  <coder>FoggyGoofball</coder>
+  <version>1.0.0</version>
+  <release_date>20260310</release_date>
+  <short_description>Stream PC desktop to Nintendo DS via Wii proxy</short_description>
+  <long_description>
+    DS Remote Desktop is a tri-node streaming stack that bridges a PC, Wii, and Nintendo DS
+    over the NiFi ad-hoc 802.11b protocol.
+
+    Features:
+    • PC desktop capture downscaled to DS resolution (256×192)
+    • Paletted 8-bit video compression (RLE keyframes + delta updates)
+    • Optional ADPCM audio streaming
+    • Optional HMAC-SHA256 telemetry authentication
+    • DS stylus + button input relay to PC
+    • Automatic channel latency calibration (1, 6, 11 MHz)
+    • 4ms ACK spoofing to maintain NiFi timing integrity
+    • Mode A (Wi-Fi) or Mode B (USB Ethernet backhaul)
+
+    Setup:
+    1. Prepare SD card with proxy.cfg in sd:/apps/dsremote/
+    2. Place haxxstation.nds (DS Download Station Vol 1) on SD root
+    3. Run wii-ds-rom-sender or equivalent to push DS client to RAM
+    4. Launch PC host targeting Wii IP
+
+    Requires: Homebrew Channel, USB Ethernet adapter (recommended)
+  </long_description>
+  <changelog>
+    v1.0.0 (2026-03-10):
+    • Initial hardware-ready release
+    • Real WD backend for Wii radio
+    • Channel latency calibration with ping/pong diagnostics
+    • Full tri-node (DS/Wii/PC) implementation
+    • HMAC authentication and audio streaming support
+  </changelog>
+  <arguments></arguments>
+  <app_type>Homebrew</app_type>
+</app>
