@@ -88,6 +88,10 @@ int main(int argc, char **argv)
     nifi_tx_init(&cfg);
     nifi_rx_init(&cfg);
 
+    /* Start ACK spoofing immediately so DS 4ms timing is preserved
+       even during channel-calibration probe traffic. */
+    ack_spoof_start();
+
     /* Optional: benchmark candidate channels and lock lowest-latency one */
     if (cfg.auto_channel) {
         uint8_t best = channel_calib_run(&cfg);
@@ -96,9 +100,6 @@ int main(int argc, char **argv)
             printf("Using calibrated channel: %u\n", cfg.wifi_channel);
         }
     }
-
-    /* Start the ACK spoof timer (runs in hardware timer IRQ) */
-    ack_spoof_start();
 
     printf("\nProxy active. Listening on UDP %d...\n", DSRD_PORT);
 

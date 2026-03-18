@@ -58,16 +58,24 @@ static int wait_for_pong(uint32_t token, uint16_t timeout_ms, uint32_t *out_rtt_
 
     while ((now_us() - start) < timeout_us) {
         int n = nifi_rx_recv(rx, sizeof(rx));
-        if (n > (int)(sizeof(dsrd_header_t) + sizeof(dsrd_diag_pong_t))) {
+        if (n >= (int)(sizeof(dsrd_header_t) + sizeof(dsrd_diag_pong_t))) {
             dsrd_header_t *hdr = (dsrd_header_t *)rx;
-            if (dsrd_header_valid(hdr) && hdr->type == PKT_DIAG_PONG &&
-                hdr->payload_len >= sizeof(dsrd_diag_pong_t)) {
-                dsrd_diag_pong_t *pong =
-                    (dsrd_diag_pong_t *)(rx + sizeof(dsrd_header_t));
-                if (pong->token == token) {
-                    *out_rtt_us = now_us() - start;
-                    return 1;
-                }
+            if (!dsrd_header_valid(hdr) || hdr->type != PKT_DIAG_PONG) {
+                usleep(1000);
+                continue;
+            }
+
+            if ((int)(sizeof(dsrd_header_t) + hdr->payload_len) > n ||
+                hdr->payload_len < sizeof(dsrd_diag_pong_t)) {
+                usleep(1000);
+                continue;
+            }
+
+            dsrd_diag_pong_t *pong =
+                (dsrd_diag_pong_t *)(rx + sizeof(dsrd_header_t));
+            if (pong->token == token) {
+                *out_rtt_us = now_us() - start;
+                return 1;
             }
         }
         usleep(1000);
