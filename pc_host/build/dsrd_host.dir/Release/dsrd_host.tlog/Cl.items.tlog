@@ -1,8 +1,0 @@
-C:\sourcecode\dsdesktop\pc_host\src\audio_enc.cpp;C:\sourcecode\dsdesktop\pc_host\build\dsrd_host.dir\Release\audio_enc.obj
-C:\sourcecode\dsdesktop\pc_host\src\capture.cpp;C:\sourcecode\dsdesktop\pc_host\build\dsrd_host.dir\Release\capture.obj
-C:\sourcecode\dsdesktop\pc_host\src\encoder.cpp;C:\sourcecode\dsdesktop\pc_host\build\dsrd_host.dir\Release\encoder.obj
-C:\sourcecode\dsdesktop\pc_host\src\hmac_host.cpp;C:\sourcecode\dsdesktop\pc_host\build\dsrd_host.dir\Release\hmac_host.obj
-C:\sourcecode\dsdesktop\pc_host\src\input_inject.cpp;C:\sourcecode\dsdesktop\pc_host\build\dsrd_host.dir\Release\input_inject.obj
-C:\sourcecode\dsdesktop\pc_host\src\main.cpp;C:\sourcecode\dsdesktop\pc_host\build\dsrd_host.dir\Release\main.obj
-C:\sourcecode\dsdesktop\pc_host\src\net_host.cpp;C:\sourcecode\dsdesktop\pc_host\build\dsrd_host.dir\Release\net_host.obj
-C:\sourcecode\dsdesktop\pc_host\src\throttle.cpp;C:\sourcecode\dsdesktop\pc_host\build\dsrd_host.dir\Release\throttle.obj
