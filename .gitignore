@@ -1,0 +1,5 @@
+
+# Explicit directory ignores
+build/
+*/build/
+**/build/**
