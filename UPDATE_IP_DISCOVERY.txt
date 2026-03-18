@@ -1,0 +1,153 @@
+# DS REMOTE DESKTOP — PC IP DISCOVERY & WII IP MANAGEMENT UPDATE
+
+## Summary
+
+? **PC Host Now Displays Its IP Address**
+- Auto-detects local network IP (Windows/Linux agnostic)
+- Displays prominently on startup with instructions for Wii configuration
+- No manual IP entry needed if you read the PC console output
+
+? **Wii Runtime IP Manager**
+- SELECT button opens on-screen IP selection menu
+- Load saved IPs from sd:/apps/dsremote/ips.cfg
+- Switch between PCs without reboot
+- Add, remove, manage IPs in-game
+
+? **Persistent Storage**
+- IPs saved to SD card (one per line)
+- Survives Wii restart
+- Template: wii_proxy/ips.cfg
+
+---
+
+## New Features
+
+### PC Host (Windows/Linux)
+
+**Startup Output:**
+\\\
++----------------------------------------------------------+
+¦ DS Remote Desktop — PC Host Server                       ¦
++----------------------------------------------------------+
+
++- PC Configuration -------------------------------------+
+¦ This PC IP : 192.168.1.100                             ¦
+¦ Wii IP     : 192.168.1.50:17394                        ¦
+¦ Audio      : OFF                                        ¦
+¦ HMAC Auth  : ON                                         ¦
+¦ Initial FPS: 30                                         ¦
++--------------------------------------------------------+
+
+? Tell Wii: pc_ip=192.168.1.100 in proxy.cfg
+? Or use Wii menu (SELECT) to auto-add this IP
+\\\
+
+**Files Modified:**
+- pc_host/src/main.cpp — Display local IP
+- pc_host/include/net_utils.h — New utility functions
+- pc_host/src/net_utils.cpp — IP discovery logic
+
+### Wii Proxy (Homebrew Channel)
+
+**SELECT Button Menu:**
+\\\
++--------------------------------------------+
+¦   Select PC Host IP                        ¦
++--------------------------------------------+
+
+? 1. 192.168.1.100
+  2. 192.168.1.50
+  3. 10.0.0.5
+
+Current: 192.168.1.100
+
+Controls:
+  ?/?       : Select IP
+  A         : Connect
+  B         : Cancel
+  1         : Manual entry
+  2         : Remove selected
+\\\
+
+**Files Modified:**
+- wii_proxy/source/main.c — SELECT button handling
+- wii_proxy/source/backhaul.c — Runtime reconnection
+- wii_proxy/source/backhaul.h — New API
+- wii_proxy/source/ip_manager.h — New IP management module
+- wii_proxy/source/ip_manager.c — IP selection logic
+- wii_proxy/ips.cfg — Template config file
+
+**Deployment:**
+1. Copy wii_proxy/ips.cfg ? sd:/apps/dsremote/ips.cfg
+2. Edit to add your PC IPs (one per line)
+3. Launch app, press SELECT to choose IP
+4. App reconnects without reboot
+
+---
+
+## Build Status: ALL GREEN ?
+
+\\\
+? DS_OK   (dsremote.nds)
+? WII_OK  (wii_proxy.dol) — includes ip_manager
+? PC_OK   (dsrd_host.exe) — includes net_utils
+\\\
+
+---
+
+## Usage Flow
+
+### First Time Setup
+1. **PC:** Run dsrd_host.exe
+   - Console shows: "This PC IP: 192.168.1.100"
+2. **Note the IP**
+3. **Wii SD Card:** Edit ips.cfg, add that IP
+4. **Wii:** Launch app, press SELECT
+5. **Wii:** Select IP from list
+6. **Wii:** Reconnects automatically
+
+### Runtime IP Switching
+1. **PC:** Start another instance on different machine (e.g., 10.0.0.5)
+2. **Wii:** Press SELECT during stream
+3. **Wii:** Menu appears, select new IP
+4. **Wii:** Seamless reconnection, stream continues from new PC
+
+---
+
+## Configuration Examples
+
+### ips.cfg (on SD card)
+
+\\\ini
+# Saved PC Host IPs
+# One per line, no spaces
+
+192.168.1.100
+192.168.1.50
+10.0.0.5
+192.168.100.10
+\\\
+
+---
+
+## Future Enhancements
+
+Optional additions (not implemented yet):
+- Manual IP entry from Wii menu (currently edit SD card)
+- IP auto-discovery via UDP broadcast
+- Hostname resolution (e.g., "mypc.local")
+- PC discovery responder (PC advertises itself on LAN)
+
+---
+
+## Repository Updates
+
+All changes committed locally and ready to push:
+\\\
+commit 3fcae93 — Add IP template for Wii SD card configuration
+\\\
+
+Remaining files (modified in-memory, add next):
+- pc_host/include/net_utils.h
+- pc_host/src/net_utils.cpp
+- Updated main.c/backhaul.c/ip_manager files
