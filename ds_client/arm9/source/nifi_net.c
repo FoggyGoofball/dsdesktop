@@ -56,6 +56,15 @@ static volatile int s_diag_pong_pending = 0;
 static dsrd_diag_pong_t s_diag_pong;
 static uint16_t s_diag_seq = 0;
 
+/* Connection lifecycle state */
+static dsrd_conn_state_t s_conn_state = CONN_IDLE;
+static uint32_t s_session_token = 0;
+static volatile int s_hs_pending = 0;      /* handshake TX needed        */
+static dsrd_handshake_t s_hs_outgoing;     /* pending outgoing handshake */
+static uint16_t s_hs_seq = 0;
+static uint16_t s_heartbeat_timer = 0;
+static uint16_t s_heartbeat_watchdog = 0;
+
 /* Forward declaration */
 static void nifi_raw_send(const uint8_t *data, uint16_t len);
 
@@ -170,6 +179,40 @@ static void nifi_rx_callback(void *user, NetBuf *pPacket)
         break;
     }
 
+    case PKT_HANDSHAKE: {
+        if (hdr->payload_len >= sizeof(dsrd_handshake_t)) {
+            const dsrd_handshake_t *hs =
+                (const dsrd_handshake_t *)(dsrd_start + sizeof(dsrd_header_t));
+
+            if (hs->hs_type == HS_ANNOUNCE && s_conn_state != CONN_CONNECTED) {
+                /* Wii is advertising — send JOIN */
+                s_session_token = hs->session_token;
+                s_hs_outgoing.hs_type       = HS_JOIN;
+                s_hs_outgoing.client_id     = g_cfg.client_id;
+                s_hs_outgoing.proto_version = DSRD_VERSION;
+                s_hs_outgoing._pad          = 0;
+                s_hs_outgoing.session_token = s_session_token;
+                s_hs_pending = 1;
+                s_conn_state = CONN_JOINING;
+
+            } else if (hs->hs_type == HS_ACCEPT &&
+                       hs->session_token == s_session_token) {
+                /* Wii accepted our JOIN — we are connected */
+                s_conn_state = CONN_CONNECTED;
+                s_heartbeat_watchdog = 0;
+
+            } else if (hs->hs_type == HS_HEARTBEAT &&
+                       s_conn_state == CONN_CONNECTED) {
+                /* Reset watchdog */
+                s_heartbeat_watchdog = 0;
+
+            } else if (hs->hs_type == HS_DISCONNECT) {
+                s_conn_state = CONN_IDLE;
+            }
+        }
+        break;
+    }
+
     default:
         s_rx_drops++;
         break;
@@ -210,7 +253,7 @@ static uint8_t s_rx_scratch[DSRD_MTU] __attribute__((aligned(4)));
 
 void dsrd_nifi_poll(void)
 {
-    /* Reply to channel-calibration ping probes */
+    /* Reply to channel-calibration ping probes (any state) */
     if (s_diag_pong_pending) {
         s_diag_pong_pending = 0;
 
@@ -225,6 +268,57 @@ void dsrd_nifi_poll(void)
         nifi_raw_send(s_tx_buf,
                       sizeof(dsrd_header_t) + sizeof(dsrd_diag_pong_t));
     }
+
+    /* Send pending handshake TX (JOIN response to ANNOUNCE) */
+    if (s_hs_pending) {
+        s_hs_pending = 0;
+
+        dsrd_header_t *hdr = (dsrd_header_t *)s_tx_buf;
+        dsrd_header_init(hdr, PKT_HANDSHAKE, s_hs_seq++,
+                         sizeof(dsrd_handshake_t), g_cfg.client_id, 0);
+
+        dsrd_handshake_t *hs =
+            (dsrd_handshake_t *)(s_tx_buf + sizeof(dsrd_header_t));
+        memcpy(hs, &s_hs_outgoing, sizeof(dsrd_handshake_t));
+
+        nifi_raw_send(s_tx_buf,
+                      sizeof(dsrd_header_t) + sizeof(dsrd_handshake_t));
+    }
+
+    /* Heartbeat logic (only when connected) */
+    if (s_conn_state == CONN_CONNECTED) {
+        s_heartbeat_timer++;
+        if (s_heartbeat_timer >= DSRD_HEARTBEAT_INTERVAL) {
+            s_heartbeat_timer = 0;
+
+            dsrd_header_t *hdr = (dsrd_header_t *)s_tx_buf;
+            dsrd_header_init(hdr, PKT_HANDSHAKE, s_hs_seq++,
+                             sizeof(dsrd_handshake_t), g_cfg.client_id, 0);
+
+            dsrd_handshake_t *hs =
+                (dsrd_handshake_t *)(s_tx_buf + sizeof(dsrd_header_t));
+            hs->hs_type       = HS_HEARTBEAT;
+            hs->client_id     = g_cfg.client_id;
+            hs->proto_version = DSRD_VERSION;
+            hs->_pad          = 0;
+            hs->session_token = s_session_token;
+
+            nifi_raw_send(s_tx_buf,
+                          sizeof(dsrd_header_t) + sizeof(dsrd_handshake_t));
+        }
+
+        /* Heartbeat watchdog */
+        s_heartbeat_watchdog++;
+        if (s_heartbeat_watchdog >= DSRD_HEARTBEAT_TIMEOUT) {
+            s_conn_state = CONN_IDLE;
+            s_heartbeat_watchdog = 0;
+            iprintf("Wii heartbeat lost. Waiting...\n");
+        }
+    }
+
+    /* Only process video/audio when connected */
+    if (s_conn_state != CONN_CONNECTED)
+        return;
 
     /* Drain video buffer — process newest, skip stale */
     while (!circ_buf_empty(&s_video_buf)) {
@@ -297,6 +391,10 @@ static void nifi_raw_send(const uint8_t *data, uint16_t len)
 
 void dsrd_nifi_send_telemetry(void)
 {
+    /* Only send telemetry when connected */
+    if (s_conn_state != CONN_CONNECTED)
+        return;
+
     dsrd_header_t *hdr = (dsrd_header_t *)s_tx_buf;
     uint8_t flags = 0;
     uint16_t payload_len = sizeof(dsrd_telemetry_t);
@@ -329,6 +427,10 @@ void dsrd_nifi_send_telemetry(void)
  *------------------------------------------------------------------------*/
 void dsrd_nifi_send_congestion(void)
 {
+    /* Only send congestion reports when connected */
+    if (s_conn_state != CONN_CONNECTED)
+        return;
+
     s_congestion_timer++;
     if (s_congestion_timer < CONGESTION_REPORT_FRAMES)
         return;

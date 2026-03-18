@@ -1,8 +1,5 @@
 # Build outputs
-build/
-*/build/
-**/build/**
-
+**/build/
 *.o
 *.d
 *.elf
@@ -25,4 +22,3 @@ build/
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
-

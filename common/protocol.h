@@ -50,6 +50,7 @@ typedef enum {
     PKT_ACK_SPOOF       = 0x30,  /* Wii-local spoofed ACK (never on wire)*/
     PKT_DIAG_PING       = 0x40,  /* channel-calibration probe            */
     PKT_DIAG_PONG       = 0x41,  /* channel-calibration probe response   */
+    PKT_HANDSHAKE       = 0x50,  /* connection lifecycle handshake       */
 } dsrd_pkt_type_t;
 
 /*--------------------------------------------------------------------------
@@ -183,6 +184,46 @@ typedef struct {
     uint8_t  channel;            /* responder observed channel            */
     uint8_t  _pad[3];
 } dsrd_diag_pong_t;
+
+/*--------------------------------------------------------------------------
+ * Connection lifecycle handshake
+ *
+ * State machine:
+ *   IDLE --> Wii sends ANNOUNCE (periodically while no DS connected)
+ *   DS receives ANNOUNCE --> DS sends JOIN
+ *   Wii receives JOIN --> Wii sends ACCEPT, enters CONNECTED
+ *   DS receives ACCEPT --> DS enters CONNECTED, starts streaming
+ *   Either side can send HEARTBEAT to maintain connection
+ *   If no HEARTBEAT received for DSRD_HEARTBEAT_TIMEOUT frames,
+ *   the connection is considered lost and returns to IDLE
+ *------------------------------------------------------------------------*/
+typedef enum {
+    CONN_IDLE       = 0,   /* no DS connected                           */
+    CONN_ANNOUNCING = 1,   /* Wii periodically broadcasting ANNOUNCE    */
+    CONN_JOINING    = 2,   /* DS sent JOIN, waiting for ACCEPT          */
+    CONN_CONNECTED  = 3,   /* bidirectional stream active               */
+    CONN_LOST       = 4,   /* heartbeat timeout, attempting recovery    */
+} dsrd_conn_state_t;
+
+typedef enum {
+    HS_ANNOUNCE     = 0,   /* Wii → DS: "I am here, connect to me"     */
+    HS_JOIN         = 1,   /* DS → Wii: "I want to connect"            */
+    HS_ACCEPT       = 2,   /* Wii → DS: "Connection accepted"          */
+    HS_HEARTBEAT    = 3,   /* bidirectional: "I am still alive"        */
+    HS_DISCONNECT   = 4,   /* either: "I am disconnecting"             */
+} dsrd_hs_type_t;
+
+#define DSRD_HEARTBEAT_INTERVAL 30   /* VBlanks between heartbeats     */
+#define DSRD_HEARTBEAT_TIMEOUT  180  /* VBlanks before connection lost  */
+#define DSRD_ANNOUNCE_INTERVAL  60   /* VBlanks between ANNOUNCE bursts */
+
+typedef struct {
+    uint8_t  hs_type;        /* dsrd_hs_type_t                          */
+    uint8_t  client_id;      /* node originating the handshake          */
+    uint8_t  proto_version;  /* DSRD_VERSION                            */
+    uint8_t  _pad;
+    uint32_t session_token;  /* random token; must match on ACCEPT      */
+} dsrd_handshake_t;
 
 #pragma pack(pop)
 

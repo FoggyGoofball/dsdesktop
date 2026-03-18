@@ -36,6 +36,7 @@
 #include "../include/input_inject.h"
 #include "../include/audio_enc.h"
 #include "../include/hmac_host.h"
+#include "../include/net_utils.h"
 
 /*--------------------------------------------------------------------------
  * Command-line configuration
@@ -109,11 +110,25 @@ int main(int argc, char **argv)
     WSAStartup(MAKEWORD(2, 2), &wsa);
 #endif
 
-    printf("DS Remote Desktop — PC Host Server\n");
-    printf("  Wii IP : %s:%d\n", cfg.wii_ip, cfg.port);
-    printf("  Audio  : %s\n", cfg.audio_enabled ? "ON" : "OFF");
-    printf("  HMAC   : %s\n", cfg.hmac_enabled  ? "ON" : "OFF");
-    printf("  FPS    : %d (initial)\n\n", cfg.initial_fps);
+    /* Discover and display local IP */
+    char local_ip[16] = "unknown";
+    net_utils_get_local_ip(local_ip, sizeof(local_ip));
+
+    printf("╔══════════════════════════════════════════════════════════╗\n");
+    printf("║ DS Remote Desktop — PC Host Server                       ║\n");
+    printf("╚══════════════════════════════════════════════════════════╝\n");
+    printf("\n");
+    printf("┌─ PC Configuration ─────────────────────────────────────┐\n");
+    printf("│ This PC IP : %s                                        │\n", local_ip);
+    printf("│ Wii IP     : %s:%d                                   │\n", cfg.wii_ip, cfg.port);
+    printf("│ Audio      : %s                                        │\n", cfg.audio_enabled ? "ON " : "OFF");
+    printf("│ HMAC Auth  : %s                                        │\n", cfg.hmac_enabled  ? "ON " : "OFF");
+    printf("│ Initial FPS: %d                                         │\n", cfg.initial_fps);
+    printf("└────────────────────────────────────────────────────────┘\n");
+    printf("\n");
+    printf("→ Tell Wii: pc_ip=%s in proxy.cfg\n", local_ip);
+    printf("→ Or use Wii menu (SELECT) to auto-add this IP\n");
+    printf("\n");
 
     /* ---- Init subsystems --------------------------------------------- */
     if (capture_init() < 0)      { fprintf(stderr, "capture init failed\n");  return 1; }

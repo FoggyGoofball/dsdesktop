@@ -21,6 +21,7 @@ void backhaul_shutdown(void);
 int  backhaul_recv(uint8_t *buf, int max_len);   /* non-blocking */
 int  backhaul_send(const uint8_t *buf, uint16_t len);
 const char *backhaul_ip_str(void);
+int  backhaul_reconnect(const wii_config_t *cfg); /* non-blocking attempt */
 
 #ifdef __cplusplus
 }

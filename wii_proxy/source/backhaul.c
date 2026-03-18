@@ -147,3 +147,21 @@ const char *backhaul_ip_str(void)
 {
     return s_ip_str;
 }
+
+/*--------------------------------------------------------------------------
+ * Runtime IP change: update PC address and retry connection
+ *------------------------------------------------------------------------*/
+int backhaul_reconnect(const wii_config_t *cfg)
+{
+    if (!cfg || !cfg->pc_ip || cfg->pc_ip[0] == '\0')
+        return -1;
+
+    /* Update stored address */
+    memset(&s_pc_addr, 0, sizeof(s_pc_addr));
+    s_pc_addr.sin_family      = AF_INET;
+    s_pc_addr.sin_port        = htons(cfg->pc_port);
+    s_pc_addr.sin_addr.s_addr = inet_addr(cfg->pc_ip);
+
+    printf("Updated PC address: %s:%u\n", cfg->pc_ip, cfg->pc_port);
+    return 0;
+}
