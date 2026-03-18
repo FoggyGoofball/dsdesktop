@@ -1,0 +1,122 @@
+# DS REMOTE DESKTOP — COMPLETE HOMEBREW CHANNEL PACKAGE
+
+## Summary
+
+All files required to run **DS Remote Desktop** on the Wii via Homebrew Channel are now
+generated and ready for deployment.
+
+## What You Have
+
+### Core Executable
+- **wii_proxy/wii_proxy.dol** (364 KB)
+  - Main Wii proxy application
+  - Real WD backend for NiFi radio
+  - Channel calibration and ACK spoofing
+  - Deploy as: sd:/apps/dsremote/boot.dol
+
+### Homebrew Channel Metadata
+- **wii_proxy/meta.xml** (1.6 KB)
+  - Tells Homebrew Channel how to display your app
+  - Name, version, description, changelog
+  - Deploy as: sd:/apps/dsremote/meta.xml
+
+### Configuration Template
+- **wii_proxy/proxy.cfg** (598 bytes)
+  - Runtime settings (IP, channel, mode, etc.)
+  - Edit before use to set your PC host IP
+  - Deploy as: sd:/apps/dsremote/proxy.cfg
+
+### Documentation
+- **README.md** — Full technical documentation
+- **HOMEBREW_SETUP.md** — Quick deployment guide
+- **.gitignore** — Version control configuration
+- **repository: https://github.com/FoggyGoofball/dsdesktop**
+
+## Deployment Quick Start
+
+### Windows
+1. Insert SD card into PC (via USB card reader)
+2. Create folder: E:\apps\dsremote\ (use your SD card letter)
+3. Copy:
+   - wii_proxy/wii_proxy.dol ? E:\apps\dsremote\boot.dol
+   - wii_proxy/meta.xml ? E:\apps/dsremote\meta.xml
+   - wii_proxy/proxy.cfg ? E:\apps\dsremote\proxy.cfg
+4. Edit E:\apps\dsremote\proxy.cfg:
+   - Set pc_ip=192.168.1.100 (to your PC's actual IP)
+5. Safely eject SD card
+6. Insert into Wii
+
+### Linux/macOS
+\\\ash
+mkdir -p /media/sdcard/apps/dsremote
+cp wii_proxy/wii_proxy.dol /media/sdcard/apps/dsremote/boot.dol
+cp wii_proxy/meta.xml /media/sdcard/apps/dsremote/meta.xml
+cp wii_proxy/proxy.cfg /media/sdcard/apps/dsremote/proxy.cfg
+
+# Edit config
+nano /media/sdcard/apps/dsremote/proxy.cfg
+# Set pc_ip to your PC IP
+
+umount /media/sdcard
+\\\
+
+## Launch
+
+1. Go to **Wii Menu** ? **Homebrew Channel**
+2. Select **"DS Remote Desktop"** and press A
+3. Wii proxy boots, runs channel calibration
+4. Wait for: "Proxy active. Listening on UDP 17394..."
+
+## Before First Launch
+
+? Ensure:
+- [ ] PC host running: \dsrd_host.exe --wii <WII_IP> --fps 30\
+- [ ] DS ready with haxxstation.nds on SD root
+- [ ] Wii connected to network (USB Ethernet recommended)
+- [ ] pc_ip in proxy.cfg matches your PC
+
+## All Three Targets Build Successfully
+
+? DS_OK    (dsremote.nds, 294 KB)
+? WII_OK   (wii_proxy.dol, 364 KB)
+? PC_OK    (dsrd_host.exe, 20 KB + libraries)
+
+## Version Control
+
+Repository: https://github.com/FoggyGoofball/dsdesktop
+
+Recent commits:
+- Add Homebrew Channel setup documentation and deployment files
+- Add Homebrew Channel metadata and Wii configuration template
+- Update channel calibration packet validation
+- Fix .gitignore to exclude binaries and build outputs
+- Initial hardware-ready tri-node DS/Wii/PC implementation with channel calibration
+
+## Next Steps
+
+1. **Deploy to SD card** (see above)
+2. **Configure proxy.cfg** (set PC IP)
+3. **Launch from Homebrew Channel**
+4. **Send DS ROM** (wii-ds-rom-sender)
+5. **Stream desktop** to DS
+
+## Files Checklist
+
+Required for Homebrew Channel:
+- ? wii_proxy/wii_proxy.dol
+- ? wii_proxy/meta.xml
+- ? wii_proxy/proxy.cfg
+
+Optional for polish:
+- ? wii_proxy/icon.png (can be generated)
+- ? wii_proxy/banner.png (can be generated)
+
+Documentation:
+- ? README.md (comprehensive architecture & technical guide)
+- ? HOMEBREW_SETUP.md (quick deployment guide)
+
+## Support
+
+- Full README: See README.md in repo root
+- Troubleshooting: HOMEBREW_SETUP.md ? Troubleshooting
+- GitHub: https://github.com/FoggyGoofball/dsdesktop
