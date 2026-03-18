@@ -1,0 +1,3 @@
+C:/sourcecode/dsdesktop/pc_host/build/CMakeFiles/dsrd_host.dir
+C:/sourcecode/dsdesktop/pc_host/build/CMakeFiles/ALL_BUILD.dir
+C:/sourcecode/dsdesktop/pc_host/build/CMakeFiles/ZERO_CHECK.dir

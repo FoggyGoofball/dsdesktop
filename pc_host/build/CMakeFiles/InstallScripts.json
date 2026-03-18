@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/sourcecode/dsdesktop/pc_host/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
