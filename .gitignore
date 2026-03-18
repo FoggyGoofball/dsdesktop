@@ -1,5 +1,28 @@
-
-# Explicit directory ignores
+# Build outputs
 build/
 */build/
 **/build/**
+
+*.o
+*.d
+*.elf
+*.elf.map
+*.dol
+*.nds
+*.exe
+*.obj
+*.ilk
+*.pdb
+*.tlog
+*.recipe
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# CMake generated
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+
