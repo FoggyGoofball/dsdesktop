@@ -139,7 +139,7 @@ typedef struct {
 typedef struct {
     uint8_t  audio_enabled;      /* 0/1                                  */
     uint8_t  hmac_enabled;       /* 0/1                                  */
-    uint8_t  target_fps;         /* e.g. 15 or 30                        */
+    uint8_t  target_fps;         /* requested runtime FPS, clamped <= 30 */
     uint8_t  wifi_channel;       /* 1..11 (requested)                    */
     uint8_t  apply_now;          /* 1 = apply config immediately         */
     uint8_t  _pad[3];
@@ -162,13 +162,13 @@ typedef struct {
 #define DSRD_PSK_LEN  (sizeof(DSRD_PSK) - 1)
 
 /*--------------------------------------------------------------------------
- * Button-remap combo descriptor
+ * Per-button remap descriptor
  *------------------------------------------------------------------------*/
 #define DSRD_MAX_REMAPS  16
 
 typedef struct {
-    uint32_t ds_mask;            /* bitmask of DS buttons held            */
-    uint8_t  virtual_output;     /* virtual key / button / axis id        */
+    uint32_t ds_mask;            /* single DS hardware button bitmask     */
+    uint8_t  virtual_output;     /* primary virtual key / button id       */
     uint8_t  _pad[3];
 } dsrd_remap_entry_t;
 

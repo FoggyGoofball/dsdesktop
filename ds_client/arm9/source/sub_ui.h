@@ -5,19 +5,17 @@
  *
  * Layout:
  *   ┌──────────────────────────────────┐  y=0
- *   │          [⚙ Remap]  (top-right)  │
+ *   │ [PAD] [MAG] [MODE] [MAP]         │
  *   │                                  │
- *   │         TRACKPAD ZONE            │
- *   │     (always ≥ 30% of screen)     │
+ *   │  control cluster   TRACKPAD      │
  *   │                                  │
- *   ├──────────────────────────────────┤  y = kbd_top (slides)
+ *   │      [ Toggle KB ]               │  floats above keyboard when open
+ *   │──────────────────────────────────│  y = kbd_top (slides)
  *   │         ON-SCREEN KEYBOARD       │
- *   │        (≤ 70% of screen)         │
- *   ├──────────────────────────────────┤  y=176
- *   │         [ ⌨ Toggle KB ]          │
  *   └──────────────────────────────────┘  y=192
  *
- *   When the remap overlay is active it covers the entire sub screen.
+ * When the remap overlay is active it covers the entire sub screen and the
+ * key chooser popup pages through the available keyboard bindings.
  *==========================================================================*/
 #ifndef DSRD_SUB_UI_H
 #define DSRD_SUB_UI_H
@@ -45,10 +43,10 @@ typedef enum {
  * Public API
  *------------------------------------------------------------------------*/
 
-/* Initialise sub-screen hardware (BG layers, palettes, console) */
+/* Initialise sub-screen bitmap hardware and static UI state */
 void sub_ui_init(void);
 
-/* Per-frame update — animate slide, redraw dirty regions */
+/* Per-frame update — animate transitions and redraw the current composed UI */
 void sub_ui_update(void);
 
 /* Classify a touch coordinate into a UI zone.

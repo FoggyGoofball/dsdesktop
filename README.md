@@ -1,5 +1,7 @@
 # DS Remote Desktop — Tri-Node NiFi Streaming Stack
 
+> New here? Start with `NOOBS_GUIDE.md` for a beginner-friendly end-to-end setup walkthrough.
+
 A remote-desktop and controller relay bridging a **PC**, a **Nintendo Wii**,
 and a **Nintendo DS** over the NiFi ad-hoc 802.11b protocol.
 

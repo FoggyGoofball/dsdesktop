@@ -1,20 +1,18 @@
 /*============================================================================
  * pc_host/src/input_inject.cpp
  *
- * Translates DS telemetry into real OS-level inputs.
+ * Translates DS telemetry into OS-level mouse and keyboard input.
  *
  * Windows:
  *   - Mouse    → SendInput (MOUSEINPUT, absolute coords)
  *   - Keyboard → SendInput (KEYBDINPUT, virtual key codes)
- *   - Gamepad  → vJoy SDK  (SetAxis / SetBtn)
  *
  * Linux:
  *   - Mouse    → uinput (EV_ABS / EV_REL)
  *   - Keyboard → uinput (EV_KEY)
- *   - Gamepad  → uinput (EV_ABS + EV_KEY)
  *
- * The remap table maps DS button combos (from dsrd_remap_entry_t) to
- * virtual output IDs, which are then translated to platform events.
+ * Each DS hardware button row may emit up to two virtual outputs, which are
+ * translated here into platform key events.
  *==========================================================================*/
 #include <cstdio>
 #include <cstring>
@@ -42,7 +40,7 @@ typedef struct {
     uint16_t platform_code;   /* VK_xxx on Windows, KEY_xxx on Linux        */
 } remap_binding_t;
 
-#define MAX_BINDINGS 32
+#define MAX_BINDINGS 64
 static remap_binding_t s_bindings[MAX_BINDINGS];
 static int s_binding_count = 0;
 
@@ -126,7 +124,7 @@ void input_inject_shutdown(void)
 }
 
 /*--------------------------------------------------------------------------
- * Load default remap bindings
+ * Load default remap bindings for DS virtual output IDs
  *------------------------------------------------------------------------*/
 void input_inject_load_remaps(void)
 {
@@ -143,8 +141,44 @@ void input_inject_load_remaps(void)
     s_bindings[s_binding_count++] = { 107, VK_TAB };
     s_bindings[s_binding_count++] = { 108, VK_SHIFT };
     s_bindings[s_binding_count++] = { 109, VK_CONTROL };
-    s_bindings[s_binding_count++] = { 110, VK_MENU };     /* ALT */
+    s_bindings[s_binding_count++] = { 110, VK_MENU };
     s_bindings[s_binding_count++] = { 111, VK_BACK };
+    s_bindings[s_binding_count++] = { 112, 'C' };
+    s_bindings[s_binding_count++] = { 113, 'D' };
+    s_bindings[s_binding_count++] = { 114, 'E' };
+    s_bindings[s_binding_count++] = { 115, 'F' };
+    s_bindings[s_binding_count++] = { 116, 'G' };
+    s_bindings[s_binding_count++] = { 117, 'H' };
+    s_bindings[s_binding_count++] = { 118, 'I' };
+    s_bindings[s_binding_count++] = { 119, 'J' };
+    s_bindings[s_binding_count++] = { 120, 'K' };
+    s_bindings[s_binding_count++] = { 121, 'L' };
+    s_bindings[s_binding_count++] = { 122, 'M' };
+    s_bindings[s_binding_count++] = { 123, 'N' };
+    s_bindings[s_binding_count++] = { 124, 'O' };
+    s_bindings[s_binding_count++] = { 125, 'P' };
+    s_bindings[s_binding_count++] = { 126, 'Q' };
+    s_bindings[s_binding_count++] = { 127, 'R' };
+    s_bindings[s_binding_count++] = { 128, 'S' };
+    s_bindings[s_binding_count++] = { 129, 'T' };
+    s_bindings[s_binding_count++] = { 130, 'U' };
+    s_bindings[s_binding_count++] = { 131, 'V' };
+    s_bindings[s_binding_count++] = { 132, 'W' };
+    s_bindings[s_binding_count++] = { 133, 'Z' };
+    s_bindings[s_binding_count++] = { 134, '0' };
+    s_bindings[s_binding_count++] = { 135, '1' };
+    s_bindings[s_binding_count++] = { 136, '2' };
+    s_bindings[s_binding_count++] = { 137, '3' };
+    s_bindings[s_binding_count++] = { 138, '4' };
+    s_bindings[s_binding_count++] = { 139, '5' };
+    s_bindings[s_binding_count++] = { 140, '6' };
+    s_bindings[s_binding_count++] = { 141, '7' };
+    s_bindings[s_binding_count++] = { 142, '8' };
+    s_bindings[s_binding_count++] = { 143, '9' };
+    s_bindings[s_binding_count++] = { 144, VK_UP };
+    s_bindings[s_binding_count++] = { 145, VK_DOWN };
+    s_bindings[s_binding_count++] = { 146, VK_LEFT };
+    s_bindings[s_binding_count++] = { 147, VK_RIGHT };
 #else
     s_bindings[s_binding_count++] = { 100, KEY_A };
     s_bindings[s_binding_count++] = { 101, KEY_B };
@@ -158,6 +192,42 @@ void input_inject_load_remaps(void)
     s_bindings[s_binding_count++] = { 109, KEY_LEFTCTRL };
     s_bindings[s_binding_count++] = { 110, KEY_LEFTALT };
     s_bindings[s_binding_count++] = { 111, KEY_BACKSPACE };
+    s_bindings[s_binding_count++] = { 112, KEY_C };
+    s_bindings[s_binding_count++] = { 113, KEY_D };
+    s_bindings[s_binding_count++] = { 114, KEY_E };
+    s_bindings[s_binding_count++] = { 115, KEY_F };
+    s_bindings[s_binding_count++] = { 116, KEY_G };
+    s_bindings[s_binding_count++] = { 117, KEY_H };
+    s_bindings[s_binding_count++] = { 118, KEY_I };
+    s_bindings[s_binding_count++] = { 119, KEY_J };
+    s_bindings[s_binding_count++] = { 120, KEY_K };
+    s_bindings[s_binding_count++] = { 121, KEY_L };
+    s_bindings[s_binding_count++] = { 122, KEY_M };
+    s_bindings[s_binding_count++] = { 123, KEY_N };
+    s_bindings[s_binding_count++] = { 124, KEY_O };
+    s_bindings[s_binding_count++] = { 125, KEY_P };
+    s_bindings[s_binding_count++] = { 126, KEY_Q };
+    s_bindings[s_binding_count++] = { 127, KEY_R };
+    s_bindings[s_binding_count++] = { 128, KEY_S };
+    s_bindings[s_binding_count++] = { 129, KEY_T };
+    s_bindings[s_binding_count++] = { 130, KEY_U };
+    s_bindings[s_binding_count++] = { 131, KEY_V };
+    s_bindings[s_binding_count++] = { 132, KEY_W };
+    s_bindings[s_binding_count++] = { 133, KEY_Z };
+    s_bindings[s_binding_count++] = { 134, KEY_0 };
+    s_bindings[s_binding_count++] = { 135, KEY_1 };
+    s_bindings[s_binding_count++] = { 136, KEY_2 };
+    s_bindings[s_binding_count++] = { 137, KEY_3 };
+    s_bindings[s_binding_count++] = { 138, KEY_4 };
+    s_bindings[s_binding_count++] = { 139, KEY_5 };
+    s_bindings[s_binding_count++] = { 140, KEY_6 };
+    s_bindings[s_binding_count++] = { 141, KEY_7 };
+    s_bindings[s_binding_count++] = { 142, KEY_8 };
+    s_bindings[s_binding_count++] = { 143, KEY_9 };
+    s_bindings[s_binding_count++] = { 144, KEY_UP };
+    s_bindings[s_binding_count++] = { 145, KEY_DOWN };
+    s_bindings[s_binding_count++] = { 146, KEY_LEFT };
+    s_bindings[s_binding_count++] = { 147, KEY_RIGHT };
 #endif
 }
 
