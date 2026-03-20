@@ -1,15 +1,10 @@
 /*============================================================================
- * wii_proxy/source/wl_stubs.c
+ * wii_proxy/source/wl_backend.c
  *
- * Stub implementations for the Broadcom BCM4318 raw radio control
- * functions.  These are referenced by nifi_tx.c, nifi_rx.c, and
- * ack_spoof.c.
+ * Wii raw wireless backend for Broadcom BCM4318 / WD ioctl control.
  *
- * In a production build, these must be replaced with real BCM4318
- * register-level code or a NiFi-capable Wii radio library.
- *
- * The stubs log a warning and return gracefully so the project links
- * and runs in "backhaul-only" mode for development/testing.
+ * This file contains the real /dev/net/wd/command flow used by the Wii
+ * proxy for beacon/link/raw send/raw recv.
  *==========================================================================*/
 #include <gccore.h>
 #include <ogc/lwp_watchdog.h>

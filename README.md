@@ -17,7 +17,7 @@ and MSVC 2026. All three nodes build cleanly with zero warnings.
 │  • Downscales to 256×192, palettizes to 8-bit indexed       │
 │  • Computes delta/keyframe video                            │
 │  • Listens for DS telemetry (buttons, touch, KB)            │
-│  • Dynamically throttles FPS per congestion reports         │
+│  • Dynamically throttle FPS per congestion reports         │
 │  • OPTIONAL: HMAC-SHA256 auth, ADPCM audio TX               │
 │                                                              │
 │  Runs UDP server on port 17394, talks to Wii proxy          │
@@ -63,7 +63,7 @@ dsdesktop/
 │   ├── Makefile                    devkitARM build config
 │   ├── arm7/
 │   │   └── source/
-│   │       └── main.c              ARM7 stub (uses pre-built calico firmware)
+│   │       └── main.c              ARM7 runtime (custom combined build)
 │   ├── arm9/
 │   │   └── source/
 │   │       ├── main.c              Entry point, main event loop
@@ -88,7 +88,7 @@ dsdesktop/
 │   │   ├── channel_calib.h/.c      Startup channel benchmark (ping/pong)
 │   │   ├── nifi_tx.h/.c            TX to DS (802.11 frame assembly)
 │   │   ├── nifi_rx.h/.c            RX from DS (promiscuous, circular ring)
-│   │   ├── wl_stubs.c              Wii WD (/dev/net/wd) backend (real impl.)
+│   │   ├── wl_backend.c            Wii WD (/dev/net/wd) backend
 │   │   ├── ack_spoof.h/.c          4ms ACK/CMD spoof thread (tight timing)
 │   │   └── backhaul.h/.c           UDP socket to PC (with MDNS fail-over)
 │   ├── wii_proxy.dol               Output executable (ignored, generated)

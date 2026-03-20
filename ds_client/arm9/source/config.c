@@ -11,4 +11,7 @@ void dsrd_config_init(void)
     g_cfg.hmac_enabled  = 0;
     g_cfg.client_id     = 2;    /* DS nodes start at ID 2 */
     g_cfg.wifi_channel  = 1;
+    g_cfg.magnifier_enabled = 0;
+    g_cfg.magnifier_zoom = 2;
+    g_cfg.magnifier_mode = 0;
 }

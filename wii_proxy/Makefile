@@ -31,10 +31,9 @@ LDFLAGS		=	-g $(MACHDEP) -Wl,-Map,$(notdir $@).map
 #--------------------------------------------------------------------------
 # Libraries: libogc (network + hardware), libfat (SD card config),
 #            libbte (Bluetooth), libwiiuse (Wii Remote).
-# Note: NiFi raw radio control requires direct Broadcom BCM4318
-# register access — the WL_* functions in nifi_tx.c / nifi_rx.c are
-# stubbed and must be implemented against the BCM4318 documentation
-# or a NiFi-capable Wii homebrew library.
+# Note: NiFi raw radio control is implemented through the Wii WD ioctl
+# backend in wl_backend.c. The code talks to /dev/net/wd/command directly
+# for beacon/link/raw send/raw recv.
 #--------------------------------------------------------------------------
 LIBS		:=	-lfat -lwiiuse -lbte -logc -lm
 

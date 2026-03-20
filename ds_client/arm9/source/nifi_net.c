@@ -446,7 +446,7 @@ void dsrd_nifi_send_congestion(void)
                        + circ_buf_drain_overflows(&s_audio_buf);
     cong->rx_drops     = s_rx_drops;
     s_rx_drops = 0;
-    cong->avg_rtt_us   = 0;  /* placeholder — can be measured with ping */
+    cong->avg_rtt_us   = 0;  /* reserved until RTT measurement is wired in */
     cong->_pad         = 0;
 
     uint16_t total = sizeof(dsrd_header_t) + sizeof(dsrd_congestion_t);

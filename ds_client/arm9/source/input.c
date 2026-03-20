@@ -102,6 +102,9 @@ void dsrd_input_poll(void)
     evaluate_remaps(keys_held, &remap_primary, &remap_secondary);
     s_telem.remap_id  = remap_primary;
     s_telem._pad      = remap_secondary;
+    s_telem.magnifier_enabled = g_cfg.magnifier_enabled;
+    s_telem.magnifier_zoom    = g_cfg.magnifier_zoom;
+    s_telem.magnifier_mode    = g_cfg.magnifier_mode;
     s_active_remap_id = s_telem.remap_id;
 
     /* ---- Runtime toggle combos -------------------------------------- */

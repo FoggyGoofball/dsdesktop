@@ -116,6 +116,56 @@ static int check_runtime_prereqs(void)
     }
 }
 
+/* -------------------------------------------------------------------------
+ * DS launch gating / operator flow
+ * -------------------------------------------------------------------------*/
+typedef enum {
+    DS_LAUNCH_NONE = 0,
+    DS_LAUNCH_FLASHCART = 1,
+    DS_LAUNCH_OTA = 2,
+} ds_launch_mode_t;
+
+static void show_launch_gate(int haxxstation_present)
+{
+    printf("\n");
+    printf("================================================================\n");
+    printf("DS SESSION LOCKED — EXPLICIT START REQUIRED\n");
+    printf("----------------------------------------------------------------\n");
+    printf("Choose how the DS client will be launched:\n\n");
+    printf("  A = Flashcart / modded DS\n");
+    printf("      Launch dsremote.nds yourself from the DS menu, then Wii\n");
+    printf("      will begin discovery/handshake only after this click.\n\n");
+    printf("  B = OTA / Haxxstation path\n");
+    if (haxxstation_present) {
+        printf("      haxxstation.nds detected. Arm the OTA session only when\n");
+        printf("      you are ready to start the Download Play/bootstrap flow.\n\n");
+    } else {
+        printf("      UNAVAILABLE: sd:/apps/dsremote/haxxstation.nds missing.\n");
+        printf("      Use flashcart/modded DS instead, or install prerequisite.\n\n");
+    }
+    printf("Other controls:\n");
+    printf("  SELECT = manage PC IPs before arming session\n");
+    printf("  HOME   = exit\n");
+    printf("================================================================\n");
+}
+
+static void show_launch_armed(ds_launch_mode_t mode)
+{
+    printf("\n");
+    printf("================================================================\n");
+    if (mode == DS_LAUNCH_FLASHCART) {
+        printf("FLASHCART SESSION ARMED\n");
+        printf("  1) Launch dsremote.nds on the DS now.\n");
+        printf("  2) Wii will advertise and wait for JOIN/ACCEPT.\n");
+    } else {
+        printf("OTA / HAXXSTATION SESSION ARMED\n");
+        printf("  1) Start your Download Play / Haxxstation sender flow now.\n");
+        printf("  2) Wii will advertise and wait for the DS bootstrap/client.\n");
+    }
+    printf("  3) On disconnect/timeout, Wii returns to the locked menu.\n");
+    printf("================================================================\n");
+}
+
 /*--------------------------------------------------------------------------
  * MAIN
  *------------------------------------------------------------------------*/
@@ -185,7 +235,12 @@ int main(int argc, char **argv)
     printf("Press HOME to exit\n\n");
 
     /* ---- Connection state machine ------------------------------------- */
-    dsrd_conn_state_t conn_state = CONN_ANNOUNCING;
+    const int haxxstation_present =
+        file_exists("sd:/apps/dsremote/haxxstation.nds");
+    ds_launch_mode_t launch_mode = DS_LAUNCH_NONE;
+    int launch_prompt_shown = 0;
+
+    dsrd_conn_state_t conn_state = CONN_IDLE;
     uint32_t session_token = (uint32_t)gettime();  /* random-ish */
     uint16_t announce_timer = 0;
     uint16_t heartbeat_timer = 0;
@@ -193,6 +248,8 @@ int main(int argc, char **argv)
     u64 heartbeat_last_rx_ticks = gettime();
 
     static uint8_t hs_buf[sizeof(dsrd_header_t) + sizeof(dsrd_handshake_t)];
+
+    printf("DS session is locked until you explicitly arm it.\n");
 
     printf("Waiting for DS client...\n");
 
@@ -223,12 +280,48 @@ int main(int argc, char **argv)
             printf("Resuming proxy...\n\n");
         }
 
+        /* Explicit launch gate: do not advertise or accept DS traffic
+           until the operator intentionally arms a session. */
+        if (launch_mode == DS_LAUNCH_NONE) {
+            if (!launch_prompt_shown) {
+                show_launch_gate(haxxstation_present);
+                launch_prompt_shown = 1;
+            }
+
+            if (pressed & WPAD_BUTTON_A) {
+                launch_mode = DS_LAUNCH_FLASHCART;
+                conn_state = CONN_ANNOUNCING;
+                announce_timer = DSRD_ANNOUNCE_INTERVAL;
+                heartbeat_timer = 0;
+                heartbeat_last_rx_ticks = gettime();
+                session_token = (uint32_t)gettime();
+                launch_prompt_shown = 0;
+                show_launch_armed(launch_mode);
+            } else if (pressed & WPAD_BUTTON_B) {
+                if (!haxxstation_present) {
+                    printf("\nOTA session not armed: haxxstation.nds is missing.\n");
+                    printf("Use A for flashcart/modded DS, or install prerequisite first.\n\n");
+                } else {
+                    launch_mode = DS_LAUNCH_OTA;
+                    conn_state = CONN_ANNOUNCING;
+                    announce_timer = DSRD_ANNOUNCE_INTERVAL;
+                    heartbeat_timer = 0;
+                    heartbeat_last_rx_ticks = gettime();
+                    session_token = (uint32_t)gettime();
+                    launch_prompt_shown = 0;
+                    show_launch_armed(launch_mode);
+                }
+            }
+
+            usleep(200);
+            continue;
+        }
+
         /* ---- Connection state machine -------------------------------- */
         switch (conn_state) {
 
         case CONN_IDLE:
-            conn_state = CONN_ANNOUNCING;
-            announce_timer = 0;
+            /* Explicitly idle: wait for operator to arm another session. */
             break;
 
         case CONN_ANNOUNCING: {
@@ -276,18 +369,22 @@ int main(int argc, char **argv)
             /* Check heartbeat watchdog (wall-clock) */
             if (ticks_to_millisecs(gettime() - heartbeat_last_rx_ticks) >=
                 DSRD_HEARTBEAT_TIMEOUT_MS) {
-                printf("DS heartbeat lost! Returning to ANNOUNCE.\n");
-                conn_state = CONN_ANNOUNCING;
+                printf("DS heartbeat lost! Session ended. Returning to launch gate.\n");
+                conn_state = CONN_IDLE;
+                launch_mode = DS_LAUNCH_NONE;
                 announce_timer = 0;
                 heartbeat_last_rx_ticks = gettime();
+                launch_prompt_shown = 0;
             }
             break;
         }
 
         case CONN_LOST:
-            printf("Connection lost. Re-announcing...\n");
-            conn_state = CONN_ANNOUNCING;
+            printf("Connection lost. Returning to launch gate...\n");
+            conn_state = CONN_IDLE;
+            launch_mode = DS_LAUNCH_NONE;
             announce_timer = 0;
+            launch_prompt_shown = 0;
             break;
 
         default:
@@ -326,7 +423,8 @@ int main(int argc, char **argv)
                         (const dsrd_handshake_t *)
                             (nifi_rx_buf + sizeof(dsrd_header_t));
 
-                    if (hs_in->hs_type == HS_JOIN) {
+                    if (hs_in->hs_type == HS_JOIN &&
+                        launch_mode != DS_LAUNCH_NONE) {
                         /* DS wants to connect — send ACCEPT */
                         printf("DS JOIN received (id=%u). Accepting...\n",
                                hs_in->client_id);
@@ -355,10 +453,12 @@ int main(int argc, char **argv)
                         heartbeat_last_rx_ticks = gettime();
 
                     } else if (hs_in->hs_type == HS_DISCONNECT) {
-                        printf("DS disconnected gracefully.\n");
-                        conn_state = CONN_ANNOUNCING;
+                        printf("DS disconnected gracefully. Returning to launch gate.\n");
+                        conn_state = CONN_IDLE;
+                        launch_mode = DS_LAUNCH_NONE;
                         announce_timer = 0;
                         heartbeat_last_rx_ticks = gettime();
+                        launch_prompt_shown = 0;
                     }
 
                 } else if (dsrd_header_valid(rx_hdr)) {

@@ -117,6 +117,10 @@ typedef struct {
     uint8_t  kbd_scancode;       /* on-screen keyboard output, 0 = none  */
     uint8_t  remap_id;           /* primary mapped virtual output id     */
     uint8_t  _pad;               /* secondary virtual output id (or 0)   */
+    uint8_t  magnifier_enabled;  /* host-side magnifier toggle           */
+    uint8_t  magnifier_zoom;     /* host-side magnifier zoom level       */
+    uint8_t  magnifier_mode;     /* 0=cursor follow, 1=stylus pan        */
+    uint8_t  _pad2;
 } dsrd_telemetry_t;
 
 /*--------------------------------------------------------------------------

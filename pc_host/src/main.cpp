@@ -196,6 +196,17 @@ int main(int argc, char **argv)
                             const dsrd_telemetry_t *tel =
                                 (const dsrd_telemetry_t *)
                                 (rx_buf + sizeof(dsrd_header_t));
+
+                            if (capture_set_magnifier(
+                                    tel->magnifier_enabled ? 1 : 0,
+                                    tel->magnifier_zoom,
+                                    tel->magnifier_mode,
+                                    tel->touch_x,
+                                    tel->touch_y,
+                                    tel->touch_down)) {
+                                encoder_force_keyframe();
+                            }
+
                             input_inject_process(tel);
                         }
                         break;

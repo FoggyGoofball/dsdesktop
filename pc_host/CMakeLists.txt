@@ -15,7 +15,7 @@ target_include_directories(dsrd_host PRIVATE
 
 if(WIN32)
     target_compile_definitions(dsrd_host PRIVATE _WIN32)
-    target_link_libraries(dsrd_host PRIVATE ws2_32 gdi32)
+    target_link_libraries(dsrd_host PRIVATE ws2_32 gdi32 ole32 uuid)
 else()
     find_package(X11 REQUIRED)
     target_link_libraries(dsrd_host PRIVATE X11::X11 Threads::Threads)

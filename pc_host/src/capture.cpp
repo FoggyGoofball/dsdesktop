@@ -38,6 +38,11 @@ static int      s_scr_h     = 0;
 static uint8_t *s_rgb_buf   = NULL;
 #endif
 
+static int s_magnifier_enabled = 0;
+static int s_magnifier_zoom    = 2;
+static int s_magnifier_mode    = 0;   /* 0=cursor, 1=stylus */
+static int s_mag_focus_x       = DSRD_SCREEN_W / 2;
+static int s_mag_focus_y       = DSRD_SCREEN_H / 2;
 /* Downscaled 24-bit buffer */
 static uint8_t s_ds_rgb[DSRD_SCREEN_W * DSRD_SCREEN_H * 3];
 
@@ -117,19 +122,89 @@ static int grab_screen(void)
 #endif
 }
 
+int capture_set_magnifier(int enabled, int zoom_level,
+                          int mode, int focus_x, int focus_y, int has_focus)
+{
+    enabled = enabled ? 1 : 0;
+    if (zoom_level < 2) zoom_level = 2;
+    if (zoom_level > 3) zoom_level = 3;
+    mode = mode ? 1 : 0;
+
+    if (has_focus) {
+        if (focus_x < 0) focus_x = 0;
+        if (focus_x > 255) focus_x = 255;
+        if (focus_y < 0) focus_y = 0;
+        if (focus_y > 191) focus_y = 191;
+        s_mag_focus_x = focus_x;
+        s_mag_focus_y = focus_y;
+    }
+
+    if (s_magnifier_enabled == enabled &&
+        s_magnifier_zoom == zoom_level &&
+        s_magnifier_mode == mode)
+        return 0;
+
+    s_magnifier_enabled = enabled;
+    s_magnifier_zoom = zoom_level;
+    s_magnifier_mode = mode;
+    return 1;
+}
+
 /*--------------------------------------------------------------------------
  * Bilinear downscale from s_rgb_buf (s_scr_w × s_scr_h, BGRA)
  * to s_ds_rgb (256 × 192, RGB24).
  *------------------------------------------------------------------------*/
 static void downscale(void)
 {
-    float sx = (float)s_scr_w / DSRD_SCREEN_W;
-    float sy = (float)s_scr_h / DSRD_SCREEN_H;
+    int roi_x = 0, roi_y = 0, roi_w = s_scr_w, roi_h = s_scr_h;
+
+    if (s_magnifier_enabled) {
+        roi_w = s_scr_w / s_magnifier_zoom;
+        roi_h = s_scr_h / s_magnifier_zoom;
+        if (roi_w < 64) roi_w = 64;
+        if (roi_h < 64) roi_h = 64;
+
+        int cx = s_scr_w / 2;
+        int cy = s_scr_h / 2;
+
+        if (s_magnifier_mode == 0) {
+#ifdef _WIN32
+            POINT pt;
+            if (GetCursorPos(&pt)) {
+                cx = pt.x;
+                cy = pt.y;
+            }
+#else
+            Window root_ret, child_ret;
+            int root_x = 0, root_y = 0, win_x = 0, win_y = 0;
+            unsigned int mask = 0;
+            XQueryPointer(s_dpy, s_root, &root_ret, &child_ret,
+                          &root_x, &root_y, &win_x, &win_y, &mask);
+            cx = root_x;
+            cy = root_y;
+#endif
+        } else {
+            cx = (s_mag_focus_x * s_scr_w) / 255;
+            cy = (s_mag_focus_y * s_scr_h) / 191;
+        }
+
+        roi_x = cx - (roi_w / 2);
+        roi_y = cy - (roi_h / 2);
+        if (roi_x < 0) roi_x = 0;
+        if (roi_y < 0) roi_y = 0;
+        if (roi_x + roi_w > s_scr_w) roi_x = s_scr_w - roi_w;
+        if (roi_y + roi_h > s_scr_h) roi_y = s_scr_h - roi_h;
+        if (roi_x < 0) roi_x = 0;
+        if (roi_y < 0) roi_y = 0;
+    }
+
+    float sx = (float)roi_w / DSRD_SCREEN_W;
+    float sy = (float)roi_h / DSRD_SCREEN_H;
 
     for (int y = 0; y < DSRD_SCREEN_H; y++) {
         for (int x = 0; x < DSRD_SCREEN_W; x++) {
-            int src_x = (int)(x * sx);
-            int src_y = (int)(y * sy);
+            int src_x = roi_x + (int)(x * sx);
+            int src_y = roi_y + (int)(y * sy);
             if (src_x >= s_scr_w) src_x = s_scr_w - 1;
             if (src_y >= s_scr_h) src_y = s_scr_h - 1;
 

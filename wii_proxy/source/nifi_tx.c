@@ -55,7 +55,7 @@ static void build_80211_header(uint8_t *frame)
     frame[1] = 0x00;
     /* Destination: broadcast */
     memset(&frame[4], 0xFF, 6);
-    /* Source: Wii proxy MAC (dummy, client_id = 1) */
+    /* Source: synthetic locally-administered MAC (Wii proxy node id = 1) */
     frame[10] = 0x02; frame[11] = 0xAA; frame[12] = 0xBB;
     frame[13] = 0x00; frame[14] = 0x00; frame[15] = 0x01;
     /* BSSID: broadcast */

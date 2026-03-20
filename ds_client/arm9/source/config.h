@@ -18,6 +18,9 @@ typedef struct {
     uint8_t hmac_enabled;
     uint8_t client_id;          /* our NiFi origin tag */
     uint8_t wifi_channel;       /* requested channel from proxy */
+    uint8_t magnifier_enabled;  /* host-side magnifier mode */
+    uint8_t magnifier_zoom;     /* host-side magnifier zoom level */
+    uint8_t magnifier_mode;     /* 0=cursor follow, 1=stylus pan */
 } dsrd_ds_config_t;
 
 extern dsrd_ds_config_t g_cfg;

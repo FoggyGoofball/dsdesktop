@@ -98,7 +98,7 @@ static int build_delta(const uint8_t *pixels,
 
     uint8_t *p = out + sizeof(dsrd_header_t);
 
-    /* Count placeholder */
+    /* Count field */
     uint16_t *count_ptr = (uint16_t *)p;
     p += 2;
 
