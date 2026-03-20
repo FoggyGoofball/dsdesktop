@@ -48,7 +48,8 @@ static int s_binding_count = 0;
 
 /* Track previous state for edge detection */
 static uint32_t s_prev_buttons = 0;
-static uint8_t  s_prev_remap   = 0;
+static uint8_t  s_prev_remap_a = 0;
+static uint8_t  s_prev_remap_b = 0;
 
 #ifndef _WIN32
 static int s_uinput_fd = -1;
@@ -131,15 +132,32 @@ void input_inject_load_remaps(void)
 {
     s_binding_count = 0;
 
-    /* Default: virtual_id 100 → Enter key */
 #ifdef _WIN32
-    s_bindings[s_binding_count++] = { 100, VK_RETURN };
-    s_bindings[s_binding_count++] = { 101, VK_SNAPSHOT };
-    s_bindings[s_binding_count++] = { 102, VK_ESCAPE };
+    s_bindings[s_binding_count++] = { 100, 'A' };
+    s_bindings[s_binding_count++] = { 101, 'B' };
+    s_bindings[s_binding_count++] = { 102, 'X' };
+    s_bindings[s_binding_count++] = { 103, 'Y' };
+    s_bindings[s_binding_count++] = { 104, VK_SPACE };
+    s_bindings[s_binding_count++] = { 105, VK_RETURN };
+    s_bindings[s_binding_count++] = { 106, VK_ESCAPE };
+    s_bindings[s_binding_count++] = { 107, VK_TAB };
+    s_bindings[s_binding_count++] = { 108, VK_SHIFT };
+    s_bindings[s_binding_count++] = { 109, VK_CONTROL };
+    s_bindings[s_binding_count++] = { 110, VK_MENU };     /* ALT */
+    s_bindings[s_binding_count++] = { 111, VK_BACK };
 #else
-    s_bindings[s_binding_count++] = { 100, KEY_ENTER };
-    s_bindings[s_binding_count++] = { 101, KEY_SYSRQ };
-    s_bindings[s_binding_count++] = { 102, KEY_ESC };
+    s_bindings[s_binding_count++] = { 100, KEY_A };
+    s_bindings[s_binding_count++] = { 101, KEY_B };
+    s_bindings[s_binding_count++] = { 102, KEY_X };
+    s_bindings[s_binding_count++] = { 103, KEY_Y };
+    s_bindings[s_binding_count++] = { 104, KEY_SPACE };
+    s_bindings[s_binding_count++] = { 105, KEY_ENTER };
+    s_bindings[s_binding_count++] = { 106, KEY_ESC };
+    s_bindings[s_binding_count++] = { 107, KEY_TAB };
+    s_bindings[s_binding_count++] = { 108, KEY_LEFTSHIFT };
+    s_bindings[s_binding_count++] = { 109, KEY_LEFTCTRL };
+    s_bindings[s_binding_count++] = { 110, KEY_LEFTALT };
+    s_bindings[s_binding_count++] = { 111, KEY_BACKSPACE };
 #endif
 }
 
@@ -208,6 +226,23 @@ static void inject_mouse(uint16_t x, uint16_t y, int pressed)
 }
 
 /*--------------------------------------------------------------------------
+ * remap lookup helpers
+ *------------------------------------------------------------------------*/
+static int remap_contains(uint8_t a, uint8_t b, uint8_t v)
+{
+    return (v != 0) && (a == v || b == v);
+}
+
+static uint16_t remap_lookup_code(uint8_t vid)
+{
+    for (int i = 0; i < s_binding_count; i++) {
+        if (s_bindings[i].virtual_id == vid)
+            return s_bindings[i].platform_code;
+    }
+    return 0;
+}
+
+/*--------------------------------------------------------------------------
  * Process a telemetry packet
  *------------------------------------------------------------------------*/
 void input_inject_process(const dsrd_telemetry_t *tel)
@@ -232,25 +267,33 @@ void input_inject_process(const dsrd_telemetry_t *tel)
 #endif
     }
 
-    /* --- Button remaps ------------------------------------------------ */
-    if (tel->remap_id != 0 && tel->remap_id != s_prev_remap) {
-        /* New remap activated — find binding */
-        for (int i = 0; i < s_binding_count; i++) {
-            if (s_bindings[i].virtual_id == tel->remap_id) {
-                inject_key(s_bindings[i].platform_code, 1);
-                break;
-            }
-        }
-    } else if (tel->remap_id == 0 && s_prev_remap != 0) {
-        /* Remap released */
-        for (int i = 0; i < s_binding_count; i++) {
-            if (s_bindings[i].virtual_id == s_prev_remap) {
-                inject_key(s_bindings[i].platform_code, 0);
-                break;
-            }
-        }
+    /* --- Button remaps (up to two simultaneous outputs) --------------- */
+    uint8_t cur_a = tel->remap_id;
+    uint8_t cur_b = tel->_pad;
+
+    /* Release keys that are no longer active */
+    if (s_prev_remap_a && !remap_contains(cur_a, cur_b, s_prev_remap_a)) {
+        uint16_t code = remap_lookup_code(s_prev_remap_a);
+        if (code) inject_key(code, 0);
+    }
+    if (s_prev_remap_b && s_prev_remap_b != s_prev_remap_a &&
+        !remap_contains(cur_a, cur_b, s_prev_remap_b)) {
+        uint16_t code = remap_lookup_code(s_prev_remap_b);
+        if (code) inject_key(code, 0);
+    }
+
+    /* Press newly active keys */
+    if (cur_a && !remap_contains(s_prev_remap_a, s_prev_remap_b, cur_a)) {
+        uint16_t code = remap_lookup_code(cur_a);
+        if (code) inject_key(code, 1);
+    }
+    if (cur_b && cur_b != cur_a &&
+        !remap_contains(s_prev_remap_a, s_prev_remap_b, cur_b)) {
+        uint16_t code = remap_lookup_code(cur_b);
+        if (code) inject_key(code, 1);
     }
 
     s_prev_buttons = tel->buttons_held;
-    s_prev_remap   = tel->remap_id;
+    s_prev_remap_a = cur_a;
+    s_prev_remap_b = cur_b;
 }

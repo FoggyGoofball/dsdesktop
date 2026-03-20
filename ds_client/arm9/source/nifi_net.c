@@ -309,7 +309,7 @@ void dsrd_nifi_poll(void)
 
         /* Heartbeat watchdog */
         s_heartbeat_watchdog++;
-        if (s_heartbeat_watchdog >= DSRD_HEARTBEAT_TIMEOUT) {
+        if (s_heartbeat_watchdog >= DSRD_HEARTBEAT_TIMEOUT_FRAMES) {
             s_conn_state = CONN_IDLE;
             s_heartbeat_watchdog = 0;
             iprintf("Wii heartbeat lost. Waiting...\n");

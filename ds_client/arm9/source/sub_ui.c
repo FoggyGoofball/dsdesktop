@@ -57,6 +57,16 @@
 #define REMAP_BTN_Y1     0
 #define REMAP_BTN_Y2     15
 
+/* Compact control-panel toggle (top-left) */
+#define PAD_TOGGLE_X1    0
+#define PAD_TOGGLE_X2    72
+#define PAD_TOGGLE_Y1    0
+#define PAD_TOGGLE_Y2    15
+
+/* Left control panel area (inspired layout) */
+#define PAD_PANEL_W      104
+#define PAD_PANEL_X2     (PAD_PANEL_W - 1)
+
 /* Slide animation speed (pixels per frame) */
 #define SLIDE_SPEED      8
 
@@ -75,6 +85,9 @@ static ui_state_t s_state = UI_STATE_TRACKPAD;
 
 /* Current keyboard top-edge in pixels (starts at SUB_H = off-screen) */
 static int s_kbd_top_px = SUB_H;
+
+/* Whether the compact control-panel is visible on the left side. */
+static int s_show_pad_panel = 1;
 
 /*--------------------------------------------------------------------------
  * On-screen keyboard data
@@ -109,10 +122,36 @@ static volatile uint8_t s_last_key = 0;
  *------------------------------------------------------------------------*/
 /* Statically allocated remap table — same format as protocol.h */
 static dsrd_remap_entry_t s_remap_table[DSRD_MAX_REMAPS];
+static uint8_t            s_remap_secondary[DSRD_MAX_REMAPS];
 static int                s_remap_count = 0;
 
 /* Which remap row is selected for editing (-1 = none) */
 static int s_remap_sel = -1;
+
+/* Modal popup state for combo selection */
+static int      s_remap_popup_active = 0;
+static int      s_remap_popup_target = -1;
+static uint32_t s_remap_popup_mask   = 0;
+
+/* Popup geometry (pixel space) */
+#define POP_X1  16
+#define POP_X2  239
+#define POP_Y1  40
+#define POP_Y2  167
+
+#define POP_GRID_X 24
+#define POP_GRID_Y 64
+#define POP_CELL_W 72
+#define POP_CELL_H 20
+#define POP_COLS   3
+#define POP_ROWS   4
+
+#define POP_APPLY_X1   40
+#define POP_APPLY_X2   112
+#define POP_CANCEL_X1  144
+#define POP_CANCEL_X2  216
+#define POP_BTN_Y1     144
+#define POP_BTN_Y2     164
 
 /* Button names for display (indexed by bit position in keysHeld) */
 typedef struct { uint32_t mask; const char *name; } btn_name_t;
@@ -133,6 +172,14 @@ static const btn_name_t s_btn_names[] = {
 };
 #define NUM_BUTTONS (sizeof(s_btn_names) / sizeof(s_btn_names[0]))
 
+typedef struct { uint8_t vid; const char *label; } key_opt_t;
+static const key_opt_t s_key_opts[] = {
+    {100, "A"}, {101, "B"}, {102, "X"}, {103, "Y"},
+    {104, "SPC"}, {105, "ENT"}, {106, "ESC"}, {107, "TAB"},
+    {108, "SHF"}, {109, "CTL"}, {110, "ALT"}, {111, "BSP"},
+};
+#define NUM_KEY_OPTS (sizeof(s_key_opts) / sizeof(s_key_opts[0]))
+
 /* Debounce tracking for button presses */
 static int s_touch_debounce = 0;
 
@@ -150,22 +197,36 @@ static void draw_keyboard(void);
 static void draw_remap_overlay(void);
 static void clear_screen(void);
 static char kbd_hit_test(uint16_t px, uint16_t py);
+static int popcount_u32(uint32_t v);
+static int popup_button_index_at(uint16_t px, uint16_t py);
+static void popup_open_for_row(int row_idx);
+static void popup_close(void);
 
 /*--------------------------------------------------------------------------
  * Default remap table
  *------------------------------------------------------------------------*/
 static void load_default_remaps(void)
 {
-    s_remap_table[0].ds_mask        = KEY_B | KEY_UP;
-    s_remap_table[0].virtual_output = 100;
+    /* One row per DS hardware button (no combo-trigger rows). */
+    s_remap_count = (int)NUM_BUTTONS;
+    if (s_remap_count > DSRD_MAX_REMAPS)
+        s_remap_count = DSRD_MAX_REMAPS;
 
-    s_remap_table[1].ds_mask        = KEY_L | KEY_R;
-    s_remap_table[1].virtual_output = 101;
+    for (int i = 0; i < s_remap_count; i++) {
+        s_remap_table[i].ds_mask = s_btn_names[i].mask;
+        s_remap_table[i].virtual_output = 0;
+        s_remap_secondary[i] = 0;
+    }
 
-    s_remap_table[2].ds_mask        = KEY_A | KEY_DOWN;
-    s_remap_table[2].virtual_output = 102;
-
-    s_remap_count = 3;
+    /* Practical defaults */
+    for (int i = 0; i < s_remap_count; i++) {
+        if (s_btn_names[i].mask == KEY_A) s_remap_table[i].virtual_output = 100; /* A */
+        if (s_btn_names[i].mask == KEY_B) s_remap_table[i].virtual_output = 101; /* B */
+        if (s_btn_names[i].mask == KEY_X) s_remap_table[i].virtual_output = 102; /* X */
+        if (s_btn_names[i].mask == KEY_Y) s_remap_table[i].virtual_output = 103; /* Y */
+        if (s_btn_names[i].mask == KEY_START)  s_remap_table[i].virtual_output = 105; /* Enter */
+        if (s_btn_names[i].mask == KEY_SELECT) s_remap_table[i].virtual_output = 106; /* Esc */
+    }
 }
 
 /*==========================================================================
@@ -188,6 +249,7 @@ void sub_ui_init(void)
     s_shift      = 0;
     s_last_key   = 0;
     s_remap_sel  = -1;
+    s_show_pad_panel = 1;
 
     load_default_remaps();
     draw_trackpad_ui();
@@ -257,6 +319,58 @@ sub_touch_zone_t sub_ui_process_touch(uint16_t px, uint16_t py,
 
     /* ---- Remap overlay mode ----------------------------------------- */
     if (s_state == UI_STATE_REMAP) {
+        /* Modal popup takes precedence over base remap list interactions. */
+        if (s_remap_popup_active) {
+            if (s_touch_debounce != 0)
+                return TOUCH_ZONE_REMAP_UI;
+
+            /* Apply / Cancel */
+            if (py >= POP_BTN_Y1 && py <= POP_BTN_Y2) {
+                if (px >= POP_APPLY_X1 && px <= POP_APPLY_X2) {
+                    /* Apply only when 1 or 2 keys are selected */
+                    int n = popcount_u32(s_remap_popup_mask);
+                    if (n >= 1 && n <= 2 &&
+                        s_remap_popup_target >= 0 &&
+                        s_remap_popup_target < s_remap_count) {
+                        uint8_t out1 = 0, out2 = 0;
+                        for (int i = 0; i < (int)NUM_KEY_OPTS; i++) {
+                            if (s_remap_popup_mask & (1u << i)) {
+                                if (!out1) out1 = s_key_opts[i].vid;
+                                else if (!out2) out2 = s_key_opts[i].vid;
+                            }
+                        }
+                        s_remap_table[s_remap_popup_target].virtual_output = out1;
+                        s_remap_secondary[s_remap_popup_target] = out2;
+                    }
+                    popup_close();
+                    draw_remap_overlay();
+                    return TOUCH_ZONE_REMAP_UI;
+                }
+                if (px >= POP_CANCEL_X1 && px <= POP_CANCEL_X2) {
+                    popup_close();
+                    draw_remap_overlay();
+                    return TOUCH_ZONE_REMAP_UI;
+                }
+            }
+
+            /* Grid buttons */
+            int bi = popup_button_index_at(px, py);
+            if (bi >= 0) {
+                uint32_t bit = (1u << bi);
+                if (s_remap_popup_mask & bit) {
+                    s_remap_popup_mask &= ~bit;
+                } else {
+                    if (popcount_u32(s_remap_popup_mask) < 2)
+                        s_remap_popup_mask |= bit;
+                }
+                s_touch_debounce = 8;
+                draw_remap_overlay();
+                return TOUCH_ZONE_REMAP_UI;
+            }
+
+            return TOUCH_ZONE_REMAP_UI;
+        }
+
         int row = py / TILE_H;
 
         /* "Done / Close" button — row 22 */
@@ -271,63 +385,60 @@ sub_touch_zone_t sub_ui_process_touch(uint16_t px, uint16_t py,
             return TOUCH_ZONE_REMAP_UI;
         }
 
-        /* "SET COMBO" button — when a row is selected, check the
-           SET zone rendered at info_row+2.  Capture held DS buttons. */
-        if (s_remap_sel >= 0 && s_remap_sel < s_remap_count) {
-            int info_row = 4 + s_remap_count + 2;
-            if (info_row > 20) info_row = 20;
-            int set_row = info_row + 2;
-            if (row == set_row && px >= 8 && px < 112) {
-                if (s_touch_debounce == 0) {
-                    scanKeys();
-                    uint32_t held = keysHeld() & ~KEY_TOUCH;
-                    if (held != 0) {
-                        s_remap_table[s_remap_sel].ds_mask = held;
-                    }
-                    s_touch_debounce = 15;
-                    draw_remap_overlay();
-                }
-                return TOUCH_ZONE_REMAP_UI;
-            }
-        }
-
         /* Header rows are 0-2, column header row 3,
            remap rows start at row 4 */
         int remap_idx = row - 4;
 
         /* Remap entry rows */
         if (remap_idx >= 0 && remap_idx < s_remap_count) {
-            if (s_remap_sel == remap_idx) {
-                /* Already selected — cycle virtual output +1 */
-                if (s_touch_debounce == 0) {
-                    s_remap_table[remap_idx].virtual_output++;
-                    if (s_remap_table[remap_idx].virtual_output > 120)
-                        s_remap_table[remap_idx].virtual_output = 100;
-                    s_touch_debounce = 10;
-                    draw_remap_overlay();
-                }
-            } else {
-                if (s_touch_debounce == 0) {
-                    s_remap_sel = remap_idx;
-                    s_touch_debounce = 10;
-                    draw_remap_overlay();
-                }
-            }
-            return TOUCH_ZONE_REMAP_UI;
-        }
-
-        /* "+Add new" row (immediately after the last remap entry) */
-        if (remap_idx == s_remap_count && s_remap_count < DSRD_MAX_REMAPS) {
             if (s_touch_debounce == 0) {
-                s_remap_table[s_remap_count].ds_mask = KEY_A;
-                s_remap_table[s_remap_count].virtual_output = 100;
-                s_remap_count++;
-                s_touch_debounce = 10;
+                s_remap_sel = remap_idx;
+                popup_open_for_row(remap_idx);
                 draw_remap_overlay();
             }
             return TOUCH_ZONE_REMAP_UI;
         }
 
+        if (remap_idx == s_remap_count) {
+            return TOUCH_ZONE_REMAP_UI;
+        }
+
+        /* Fixed per-button rows; no dynamic add/remove in this mode. */
+    }
+
+    /* ---- KB toggle button (bottom strip) ----------------------------- */
+    if (px >= KB_BTN_X1 && px <= KB_BTN_X2 &&
+        py >= KB_BTN_Y1 && py <= KB_BTN_Y2) {
+        if (s_touch_debounce == 0) {
+            s_touch_debounce = 15;
+            if (s_state == UI_STATE_TRACKPAD) {
+                s_state = UI_STATE_KBD_SLIDING_IN;
+            } else if (s_state == UI_STATE_KBD_OPEN) {
+                s_state = UI_STATE_KBD_SLIDING_OUT;
+            }
+            /* if already sliding, let it finish */
+        }
+        return TOUCH_ZONE_KB_BTN;
+    }
+
+    /* ---- Panel toggle button (top-left) ------------------------------- */
+    if (px <= PAD_TOGGLE_X2 && py <= PAD_TOGGLE_Y2) {
+        if (s_touch_debounce == 0) {
+            s_touch_debounce = 15;
+            s_show_pad_panel ^= 1;
+            clear_screen();
+            draw_trackpad_ui();
+            if (s_state == UI_STATE_KBD_OPEN || s_state == UI_STATE_KBD_SLIDING_IN)
+                draw_keyboard();
+        }
+        return TOUCH_ZONE_REMAP_UI;
+    }
+
+    /* If compact control panel is visible, consume touches on it so
+       trackpad movement only occurs in the dedicated trackpad region. */
+    if (s_show_pad_panel && px <= PAD_PANEL_X2 &&
+        py < (uint16_t)((s_state == UI_STATE_KBD_OPEN || s_state == UI_STATE_KBD_SLIDING_IN)
+            ? s_kbd_top_px : KB_BTN_Y1)) {
         return TOUCH_ZONE_REMAP_UI;
     }
 
@@ -347,21 +458,6 @@ sub_touch_zone_t sub_ui_process_touch(uint16_t px, uint16_t py,
             draw_remap_overlay();
         }
         return TOUCH_ZONE_REMAP_BTN;
-    }
-
-    /* ---- KB toggle button (bottom strip) ----------------------------- */
-    if (px >= KB_BTN_X1 && px <= KB_BTN_X2 &&
-        py >= KB_BTN_Y1 && py <= KB_BTN_Y2) {
-        if (s_touch_debounce == 0) {
-            s_touch_debounce = 15;
-            if (s_state == UI_STATE_TRACKPAD) {
-                s_state = UI_STATE_KBD_SLIDING_IN;
-            } else if (s_state == UI_STATE_KBD_OPEN) {
-                s_state = UI_STATE_KBD_SLIDING_OUT;
-            }
-            /* if already sliding, let it finish */
-        }
-        return TOUCH_ZONE_KB_BTN;
     }
 
     /* ---- Keyboard zone (when visible) -------------------------------- */
@@ -405,6 +501,13 @@ const dsrd_remap_entry_t *sub_ui_get_remap_table(int *count)
     return s_remap_table;
 }
 
+uint8_t sub_ui_get_secondary_output(int idx)
+{
+    if (idx < 0 || idx >= s_remap_count)
+        return 0;
+    return s_remap_secondary[idx];
+}
+
 /*==========================================================================
  * PRIVATE — Drawing helpers
  *========================================================================*/
@@ -425,15 +528,52 @@ static void draw_trackpad_ui(void)
 {
     consoleSelect(&s_console);
 
-    /* Top-right: remap button  (row 0, col 28..31) */
-    iprintf("\x1b[0;28H\x1b[33m" "Bind" "\x1b[39m");
+    /* Top action strip */
+    iprintf("\x1b[0;0H\x1b[36m%s\x1b[39m",
+            s_show_pad_panel ? "[Pad:ON ]" : "[Pad:OFF]");
+    iprintf("\x1b[0;22H\x1b[33mBind\x1b[39m");
 
-    /* Centre: trackpad indicator */
-    int mid_row = 11;
+    /* Determine current usable trackpad rows (exclude keyboard + bottom bar) */
+    int track_bottom_px = KB_BTN_Y1;
     if (s_state == UI_STATE_KBD_OPEN || s_state == UI_STATE_KBD_SLIDING_IN)
-        mid_row = (s_kbd_top_px / TILE_H) / 2;
-    if (mid_row < 2) mid_row = 2;
-    iprintf("\x1b[%d;10H\x1b[37m" "-- Trackpad --" "\x1b[39m", mid_row);
+        track_bottom_px = s_kbd_top_px;
+    int track_rows = track_bottom_px / TILE_H;
+    if (track_rows < 6) track_rows = 6;
+
+    /* Optional left compact control panel (visual only) */
+    if (s_show_pad_panel) {
+        iprintf("\x1b[2;0H\x1b[37m+------------+\x1b[39m");
+        iprintf("\x1b[3;0H\x1b[37m| A  B  X    |\x1b[39m");
+        iprintf("\x1b[4;0H\x1b[37m| Y  L  R    |\x1b[39m");
+        iprintf("\x1b[5;0H\x1b[37m|Sel St  Dp  |\x1b[39m");
+        iprintf("\x1b[6;0H\x1b[37m+------------+\x1b[39m");
+        iprintf("\x1b[8;0H\x1b[90m(touch ignored)\x1b[39m");
+    }
+
+    /* Trackpad panel box */
+    int track_col = s_show_pad_panel ? 14 : 1;
+    int track_w   = s_show_pad_panel ? 17 : 30;
+    int top_row   = 2;
+    int bottom_row = track_rows - 2;
+    if (bottom_row <= top_row + 2) bottom_row = top_row + 3;
+
+    iprintf("\x1b[%d;%dH\x1b[37m+", top_row, track_col);
+    for (int i = 0; i < track_w - 2; i++) iprintf("-");
+    iprintf("+");
+
+    for (int r = top_row + 1; r < bottom_row; r++) {
+        iprintf("\x1b[%d;%dH\x1b[37m|\x1b[39m", r, track_col);
+        iprintf("\x1b[%d;%dH\x1b[37m|\x1b[39m", r, track_col + track_w - 1);
+    }
+
+    iprintf("\x1b[%d;%dH\x1b[37m+", bottom_row, track_col);
+    for (int i = 0; i < track_w - 2; i++) iprintf("-");
+    iprintf("+");
+
+    int mid_row = (top_row + bottom_row) / 2;
+    int lbl_col = track_col + (track_w - 11) / 2;
+    if (lbl_col < track_col + 1) lbl_col = track_col + 1;
+    iprintf("\x1b[%d;%dH\x1b[37mTRACKPAD\x1b[39m", mid_row, lbl_col);
 
     /* Bottom: KB toggle button (row 22-23, centred) */
     const char *kb_label;
@@ -558,13 +698,13 @@ static void draw_remap_overlay(void)
     consoleSelect(&s_console);
     consoleClear();
 
-    /* Title */
+    /* Title + usage */
     iprintf("\x1b[0;4H\x1b[33m=== BUTTON REMAP ===\x1b[39m");
-    iprintf("\x1b[1;0H" "Tap row to select, tap again to");
-    iprintf("\x1b[2;0H" "cycle output. Tap +Add for new.");
+    iprintf("\x1b[1;0HTap a DS button row to bind keys");
+    iprintf("\x1b[2;0HEach DS button supports up to 2 keys");
 
     /* Column headers */
-    iprintf("\x1b[3;0H\x1b[36m" " # Buttons        -> Out" "\x1b[39m");
+    iprintf("\x1b[3;0H\x1b[36m DS Button        -> Keys\x1b[39m");
 
     /* Remap rows */
     for (int i = 0; i < s_remap_count && i < 14; i++) {
@@ -572,73 +712,143 @@ static void draw_remap_overlay(void)
         char buf[33];
         memset(buf, 0, sizeof(buf));
 
-        /* Build button name string from mask */
-        char names[24];
-        memset(names, 0, sizeof(names));
-        int first = 1;
+        const char *btn_label = "?";
         for (int b = 0; b < (int)NUM_BUTTONS; b++) {
-            if (s_remap_table[i].ds_mask & s_btn_names[b].mask) {
-                if (!first) strncat(names, "+", sizeof(names) - strlen(names) - 1);
-                strncat(names, s_btn_names[b].name, sizeof(names) - strlen(names) - 1);
-                first = 0;
+            if (s_btn_names[b].mask == s_remap_table[i].ds_mask) {
+                btn_label = s_btn_names[b].name;
+                break;
             }
         }
 
-        if (i == s_remap_sel)
-            snprintf(buf, sizeof(buf), ">[%d] %-14s -> %3d",
-                     i, names, s_remap_table[i].virtual_output);
+        const char *k1 = "-";
+        const char *k2 = "";
+        for (int k = 0; k < (int)NUM_KEY_OPTS; k++) {
+            if (s_key_opts[k].vid == s_remap_table[i].virtual_output) k1 = s_key_opts[k].label;
+            if (s_key_opts[k].vid == s_remap_secondary[i]) k2 = s_key_opts[k].label;
+        }
+
+        char keys[16];
+        if (s_remap_secondary[i] != 0)
+            snprintf(keys, sizeof(keys), "%s+%s", k1, k2);
         else
-            snprintf(buf, sizeof(buf), " [%d] %-14s -> %3d",
-                     i, names, s_remap_table[i].virtual_output);
+            snprintf(keys, sizeof(keys), "%s", k1);
+
+        if (i == s_remap_sel)
+            snprintf(buf, sizeof(buf), "> %-10s -> %-8s", btn_label, keys);
+        else
+            snprintf(buf, sizeof(buf), "  %-10s -> %-8s", btn_label, keys);
 
         iprintf("\x1b[%d;0H%s", row, buf);
     }
 
-    /* +Add row */
-    if (s_remap_count < DSRD_MAX_REMAPS) {
-        iprintf("\x1b[%d;0H\x1b[32m" " [+] Add new remap..." "\x1b[39m",
-                4 + s_remap_count);
-    }
-
-    /* Editing instructions for selected row */
-    if (s_remap_sel >= 0 && s_remap_sel < s_remap_count) {
-        int info_row = 4 + s_remap_count + 2;
-        if (info_row > 20) info_row = 20;
-        iprintf("\x1b[%d;0H\x1b[33m" "Hold DS buttons + tap SET" "\x1b[39m",
-                info_row);
-        iprintf("\x1b[%d;0H\x1b[33m" "to assign combo to #%d" "\x1b[39m",
-                info_row + 1, s_remap_sel);
-
-        /* SET button */
-        iprintf("\x1b[%d;1H\x1b[32m" "[ SET COMBO ]" "\x1b[39m",
-                info_row + 2);
-
-        /* Check if the user is pressing DS buttons right now */
-        scanKeys();
-        uint32_t held = keysHeld();
-        /* Filter out touch bit */
-        held &= ~KEY_TOUCH;
-        if (held != 0) {
-            /* Show what they're holding */
-            char held_str[24];
-            memset(held_str, 0, sizeof(held_str));
-            int hfirst = 1;
-            for (int b = 0; b < (int)NUM_BUTTONS; b++) {
-                if (held & s_btn_names[b].mask) {
-                    if (!hfirst) strncat(held_str, "+",
-                                         sizeof(held_str) - strlen(held_str) - 1);
-                    strncat(held_str, s_btn_names[b].name,
-                            sizeof(held_str) - strlen(held_str) - 1);
-                    hfirst = 0;
-                }
-            }
-            iprintf("\x1b[%d;1H" "Holding: %-20s", info_row + 3, held_str);
-        }
-
-        /* If they tap "SET COMBO" zone, capture the held buttons */
-        /* (handled in process_touch via a special coordinate check) */
-    }
+    /* Fixed rows only (A/B/X/Y/L/R/Start/Select/D-Pad). */
+    iprintf("\x1b[18;0H\x1b[37m[ Remap in GAME ]\x1b[39m");
 
     /* Done button — bottom row */
-    iprintf("\x1b[22;8H\x1b[36m" "[ Done / Close ]" "\x1b[39m");
+    iprintf("\x1b[22;8H\x1b[36m[ Done / Close ]\x1b[39m");
+
+    /* --- Modal combo picker popup ------------------------------------ */
+    if (s_remap_popup_active) {
+        /* Draw popup border */
+        int r1 = POP_Y1 / TILE_H;
+        int r2 = POP_Y2 / TILE_H;
+        int c1 = POP_X1 / 8;
+        int c2 = POP_X2 / 8;
+
+        for (int c = c1; c <= c2; c++) {
+            iprintf("\x1b[%d;%dH\x1b[37m=\x1b[39m", r1, c);
+            iprintf("\x1b[%d;%dH\x1b[37m=\x1b[39m", r2, c);
+        }
+        for (int r = r1; r <= r2; r++) {
+            iprintf("\x1b[%d;%dH\x1b[37m|\x1b[39m", r, c1);
+            iprintf("\x1b[%d;%dH\x1b[37m|\x1b[39m", r, c2);
+        }
+
+        iprintf("\x1b[%d;%dH\x1b[33mSelect 1 or 2 keyboard keys\x1b[39m", r1 + 1, c1 + 2);
+        iprintf("\x1b[%d;%dH\x1b[37mTap to toggle, then Apply\x1b[39m", r1 + 2, c1 + 2);
+
+        for (int i = 0; i < (int)NUM_KEY_OPTS; i++) {
+            int row = i / POP_COLS;
+            int col = i % POP_COLS;
+            int rr = (POP_GRID_Y / TILE_H) + (row * 3);
+            int cc = (POP_GRID_X / 8) + (col * 10);
+            int on = (s_remap_popup_mask & (1u << i)) ? 1 : 0;
+            iprintf("\x1b[%d;%dH%s%-6s",
+                    rr, cc,
+                    on ? "\x1b[32m[*] " : "\x1b[37m[ ] ",
+                    s_key_opts[i].label);
+            iprintf("\x1b[39m");
+        }
+
+        int nsel = popcount_u32(s_remap_popup_mask);
+        iprintf("\x1b[%d;%dH\x1b[36mSelected: %d/2\x1b[39m", (POP_BTN_Y1 / TILE_H) - 1, c1 + 2, nsel);
+
+        iprintf("\x1b[%d;%dH\x1b[32m[  APPLY  ]\x1b[39m", POP_BTN_Y1 / TILE_H, POP_APPLY_X1 / 8);
+        iprintf("\x1b[%d;%dH\x1b[31m[ CANCEL ]\x1b[39m", POP_BTN_Y1 / TILE_H, POP_CANCEL_X1 / 8);
+    }
+}
+
+static int popcount_u32(uint32_t v)
+{
+    int n = 0;
+    while (v) {
+        n += (v & 1u) ? 1 : 0;
+        v >>= 1;
+    }
+    return n;
+}
+
+static int popup_button_index_at(uint16_t px, uint16_t py)
+{
+    if (px < POP_GRID_X || py < POP_GRID_Y)
+        return -1;
+
+    int rel_x = (int)px - POP_GRID_X;
+    int rel_y = (int)py - POP_GRID_Y;
+
+    int stride_x = POP_CELL_W + 4;
+    int stride_y = POP_CELL_H + 4;
+
+    int col = rel_x / stride_x;
+    int row = rel_y / stride_y;
+
+    if (col < 0 || col >= POP_COLS || row < 0 || row >= POP_ROWS)
+        return -1;
+
+    int in_cell_x = rel_x % stride_x;
+    int in_cell_y = rel_y % stride_y;
+    if (in_cell_x >= POP_CELL_W || in_cell_y >= POP_CELL_H)
+        return -1;
+
+    int idx = row * POP_COLS + col;
+    if (idx >= (int)NUM_KEY_OPTS)
+        return -1;
+    return idx;
+}
+
+static void popup_open_for_row(int row_idx)
+{
+    if (row_idx < 0 || row_idx >= s_remap_count)
+        return;
+
+    s_remap_popup_active = 1;
+    s_remap_popup_target = row_idx;
+    s_remap_popup_mask   = 0;
+
+    uint8_t v1 = s_remap_table[row_idx].virtual_output;
+    uint8_t v2 = s_remap_secondary[row_idx];
+    for (int i = 0; i < (int)NUM_KEY_OPTS; i++) {
+        if (s_key_opts[i].vid == v1 || s_key_opts[i].vid == v2)
+            s_remap_popup_mask |= (1u << i);
+    }
+
+    s_touch_debounce = 10;
+}
+
+static void popup_close(void)
+{
+    s_remap_popup_active = 0;
+    s_remap_popup_target = -1;
+    s_remap_popup_mask   = 0;
+    s_touch_debounce = 8;
 }

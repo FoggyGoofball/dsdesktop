@@ -41,19 +41,46 @@ int main(void)
     int bg = bgInit(2, BgType_Bmp8, BgSize_B8_256x256, 0, 0);
     (void)bg;
 
-    /* Bottom screen: initialised by sub_ui_init() (text console) */
+    /* Bring up the sub-screen UI early so boot status is visible.
+       We will re-init it after networking so the normal trackpad layout
+       starts cleanly. */
+    sub_ui_init();
+    iprintf("DS Remote Desktop\n");
+    iprintf("Booting...\n\n");
 
     /* ---- Subsystem init ---------------------------------------------- */
+    iprintf("[1/7] config\n");
     dsrd_config_init();
+
+    iprintf("[2/7] video\n");
     dsrd_video_init();
-    sub_ui_init();          /* bottom screen: trackpad + slide-out KB */
+
+    iprintf("[3/7] input\n");
     dsrd_input_init();
+
+    iprintf("[4/7] keyboard\n");
     dsrd_keyboard_init();   /* compatibility shim — delegates to sub_ui */
+
+    iprintf("[5/7] audio\n");
     dsrd_audio_init();
+
+    iprintf("[6/7] hmac\n");
     dsrd_hmac_init();
 
     /* ---- NiFi networking --------------------------------------------- */
+    iprintf("[7/7] wireless\n");
+    iprintf("Starting NiFi...\n");
     dsrd_nifi_init();
+    iprintf("NiFi init returned\n");
+    iprintf("Waiting for Wii announce...\n");
+
+    /* Re-initialise the normal bottom-screen UI so the runtime layout
+       starts from a clean state after boot messages. */
+    sub_ui_init();
+
+    /* Re-print runtime connection hint AFTER sub_ui_init(), because
+       sub_ui_init() clears/redraws the sub-screen console. */
+    iprintf("NiFi ready. Waiting for Wii announce...\n");
 
     /* ---- Main loop --------------------------------------------------- */
     for (;;) {

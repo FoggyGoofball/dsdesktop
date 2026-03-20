@@ -96,11 +96,12 @@ static int check_runtime_prereqs(void)
     printf("  4) Reboot this app, then perform DS payload transfer.\n\n");
 
     printf("Notes:\n");
-    printf("  - If your DS is already modded and you do not use this transfer\n");
-    printf("    method, you may continue without this file.\n\n");
+    printf("  - If your DS is already modded, or you use an R4 / flashcart\n");
+    printf("    to launch dsremote.nds directly, you may continue without\n");
+    printf("    this file.\n\n");
 
     printf("Controls:\n");
-    printf("  A = continue anyway\n");
+    printf("  A = continue anyway (R4 / flashcart / modded DS)\n");
     printf("  B = exit now\n");
     printf("================================================================\n");
 
@@ -188,8 +189,8 @@ int main(int argc, char **argv)
     uint32_t session_token = (uint32_t)gettime();  /* random-ish */
     uint16_t announce_timer = 0;
     uint16_t heartbeat_timer = 0;
-    uint16_t heartbeat_watchdog = 0;
     uint16_t hs_seq = 0;
+    u64 heartbeat_last_rx_ticks = gettime();
 
     static uint8_t hs_buf[sizeof(dsrd_header_t) + sizeof(dsrd_handshake_t)];
 
@@ -272,13 +273,13 @@ int main(int argc, char **argv)
                 nifi_tx_send(hs_buf, sizeof(hs_buf));
             }
 
-            /* Check heartbeat watchdog */
-            heartbeat_watchdog++;
-            if (heartbeat_watchdog >= DSRD_HEARTBEAT_TIMEOUT) {
+            /* Check heartbeat watchdog (wall-clock) */
+            if (ticks_to_millisecs(gettime() - heartbeat_last_rx_ticks) >=
+                DSRD_HEARTBEAT_TIMEOUT_MS) {
                 printf("DS heartbeat lost! Returning to ANNOUNCE.\n");
                 conn_state = CONN_ANNOUNCING;
                 announce_timer = 0;
-                heartbeat_watchdog = 0;
+                heartbeat_last_rx_ticks = gettime();
             }
             break;
         }
@@ -345,25 +346,26 @@ int main(int argc, char **argv)
                         nifi_tx_send(hs_buf, sizeof(hs_buf));
 
                         conn_state = CONN_CONNECTED;
-                        heartbeat_watchdog = 0;
                         heartbeat_timer = 0;
+                        heartbeat_last_rx_ticks = gettime();
                         printf("DS connected! Streaming active.\n");
 
                     } else if (hs_in->hs_type == HS_HEARTBEAT) {
                         /* Reset watchdog */
-                        heartbeat_watchdog = 0;
+                        heartbeat_last_rx_ticks = gettime();
 
                     } else if (hs_in->hs_type == HS_DISCONNECT) {
                         printf("DS disconnected gracefully.\n");
                         conn_state = CONN_ANNOUNCING;
                         announce_timer = 0;
+                        heartbeat_last_rx_ticks = gettime();
                     }
 
                 } else if (dsrd_header_valid(rx_hdr)) {
                     /* Normal telemetry/congestion — forward to PC */
                     if (conn_state == CONN_CONNECTED) {
                         backhaul_send(nifi_rx_buf, (uint16_t)m);
-                        heartbeat_watchdog = 0;  /* any rx = alive */
+                        heartbeat_last_rx_ticks = gettime();  /* any rx = alive */
                     }
                 }
             }

@@ -51,11 +51,14 @@ sd:/
    cp wii_proxy/banner.png → sd:/apps/dsremote/banner.png
    ```
 
-5. **DS Exploit ROM (if using Haxxstation method):**
+5. **DS bootstrap asset (optional, only for Download Play workflows):**
    ```
    Rename: "DS Download Station - Volume 1.nds" → "haxxstation.nds"
    cp haxxstation.nds → sd:/apps/dsremote/haxxstation.nds
    ```
+
+   If you use an `R4`, flashcart, or modded DS that can launch `dsremote.nds` directly,
+   skip this file entirely.
 
 ---
 
@@ -192,3 +195,20 @@ Once Homebrew Channel shows the app:
 3. Start PC host (`dsrd_host.exe --wii 192.168.1.50`)
 4. Send DS client ROM to DS RAM (using wii-ds-rom-sender or equivalent)
 5. DS should join NiFi network and display PC desktop
+
+### SD Card Directory Layout (Final)
+
+```
+sd:/
+├── apps/
+│   └── dsremote/
+│       ├── boot.dol          ← wii_proxy.dol (renamed)
+│       ├── meta.xml          ← Homebrew Channel metadata (required)
+│       ├── proxy.cfg         ← Runtime configuration
+│       ├── icon.png          ← Optional: 48×48 RGBA icon
+│       ├── banner.png        ← Optional: 192×64 RGBA banner
+│       └── haxxstation.nds   ← Optional: only for Download Play bootstrap
+└── boot.elf                  ← Homebrew Channel (pre-installed)
+```
+
+If you use an `R4`/flashcart or another direct DS homebrew method, `haxxstation.nds` is not needed.

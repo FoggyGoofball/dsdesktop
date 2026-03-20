@@ -69,6 +69,9 @@ int sub_ui_remap_active(void);
 /* Access the live remap table (for input.c to evaluate) */
 const dsrd_remap_entry_t *sub_ui_get_remap_table(int *count);
 
+/* Get secondary virtual output id for remap row i (0 if none) */
+uint8_t sub_ui_get_secondary_output(int idx);
+
 #ifdef __cplusplus
 }
 #endif

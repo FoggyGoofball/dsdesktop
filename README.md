@@ -169,9 +169,12 @@ cmake --build build --config Release
 
 1. Format SD card (FAT32).
 2. Create: `sd:/apps/dsremote/` directory.
-3. Place:
-   - **haxxstation.nds** (renamed *DS Download Station – Vol 1* US), OR
-   - Skip if your DS has FlashMe / is already modded (builder's choice).
+3. Choose **one** DS boot method:
+   - **Flashcart / modded DS path** *(recommended if available)*:
+     - Copy `ds_client/dsremote.nds` to your `R4`/flashcart microSD, or launch it via your existing DS homebrew method.
+     - In this mode, **`haxxstation.nds` is not required**.
+   - **Download Play bootstrap path** *(for unmodded DS workflows)*:
+     - Supply your own externally obtained `haxxstation.nds` and place it at `sd:/apps/dsremote/haxxstation.nds`.
 4. ~~Create config file~~ **Skip this step** — the Wii will auto-configure on first boot!
 5. Copy `wii_proxy/wii_proxy.dol` to `sd:/apps/dsremote/boot.dol`.
 6. Launch from Homebrew Channel.
@@ -218,13 +221,21 @@ Press SELECT to manage PC IPs
 Press HOME to exit
 ```
 
-### Step 2: DS Exploit & Payload
+### Step 2: DS Boot / Payload
 
-Use your preferred NiFi sender (or FIX94's wii-ds-rom-sender):
-1. Select `ds_client/dsremote.nds` as payload.
-2. Trigger exploit (Download Play, Haxxstation, etc.).
-3. Wait ~10–30 seconds for Wii to push ROM to DS RAM.
-4. DS boots into remote-desktop client.
+Use the method that matches your hardware:
+
+1. **R4 / flashcart / modded DS**
+   - Copy `ds_client/dsremote.nds` to the DS storage device.
+   - Launch `dsremote.nds` directly from the flashcart or homebrew menu.
+   - No `haxxstation.nds` or Download Play bootstrap is needed.
+
+2. **Unmodded DS using Download Play bootstrap**
+   - Use your preferred NiFi sender (or FIX94's `wii-ds-rom-sender`).
+   - Select `ds_client/dsremote.nds` as payload.
+   - Trigger the exploit/bootstrap flow using your externally supplied `haxxstation.nds`.
+   - Wait ~10–30 seconds for Wii to push code to DS RAM.
+   - DS boots into the remote-desktop client.
 
 ### Step 3: PC Host
 
@@ -402,8 +413,12 @@ Expected location on SD card:
 sd:/apps/dsremote/haxxstation.nds
 ```
 
+Important:
+- If you use an **R4**, another **DS flashcart**, or a **modded DS** that can launch homebrew directly, you can ignore this requirement and run `dsremote.nds` directly.
+- `haxxstation.nds` is only needed for **Download Play bootstrap workflows** on otherwise unmodded DS hardware.
+
 At runtime, Wii now performs a prerequisite check:
 - if file exists: startup continues normally
 - if missing: a clear on-screen instruction panel is shown
-  - `A` continue anyway (for already-modded DS flows)
+  - `A` continue anyway (for `R4` / flashcart / modded DS flows)
   - `B` exit and install prerequisite first

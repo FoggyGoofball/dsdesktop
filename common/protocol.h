@@ -115,8 +115,8 @@ typedef struct {
     uint16_t touch_y;
     uint8_t  touch_down;         /* 1 = stylus touching                  */
     uint8_t  kbd_scancode;       /* on-screen keyboard output, 0 = none  */
-    uint8_t  remap_id;          /* which virtual output mapping is active*/
-    uint8_t  _pad;
+    uint8_t  remap_id;           /* primary mapped virtual output id     */
+    uint8_t  _pad;               /* secondary virtual output id (or 0)   */
 } dsrd_telemetry_t;
 
 /*--------------------------------------------------------------------------
@@ -194,8 +194,9 @@ typedef struct {
  *   Wii receives JOIN --> Wii sends ACCEPT, enters CONNECTED
  *   DS receives ACCEPT --> DS enters CONNECTED, starts streaming
  *   Either side can send HEARTBEAT to maintain connection
- *   If no HEARTBEAT received for DSRD_HEARTBEAT_TIMEOUT frames,
- *   the connection is considered lost and returns to IDLE
+ *   If no heartbeat/telemetry activity is received for the timeout window,
+ *   the connection is considered lost and returns to IDLE.
+ *   (DS uses frame timeout, Wii uses wall-clock milliseconds.)
  *------------------------------------------------------------------------*/
 typedef enum {
     CONN_IDLE       = 0,   /* no DS connected                           */
@@ -213,9 +214,13 @@ typedef enum {
     HS_DISCONNECT   = 4,   /* either: "I am disconnecting"             */
 } dsrd_hs_type_t;
 
-#define DSRD_HEARTBEAT_INTERVAL 30   /* VBlanks between heartbeats     */
-#define DSRD_HEARTBEAT_TIMEOUT  180  /* VBlanks before connection lost  */
-#define DSRD_ANNOUNCE_INTERVAL  60   /* VBlanks between ANNOUNCE bursts */
+/* Heartbeat timing:
+ * - DS side polls in VBlank cadence, so timeout is also exposed in frames.
+ * - Wii side uses wall-clock timeout in milliseconds. */
+#define DSRD_HEARTBEAT_INTERVAL       30      /* VBlanks between heartbeats     */
+#define DSRD_HEARTBEAT_TIMEOUT_FRAMES 1800    /* 30s @ 60 VBlank/s (DS side)    */
+#define DSRD_HEARTBEAT_TIMEOUT_MS     30000   /* 30 seconds (Wii side)          */
+#define DSRD_ANNOUNCE_INTERVAL        60      /* VBlanks between ANNOUNCE bursts */
 
 typedef struct {
     uint8_t  hs_type;        /* dsrd_hs_type_t                          */

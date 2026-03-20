@@ -32,22 +32,34 @@ void dsrd_input_init(void)
 }
 
 /*--------------------------------------------------------------------------
- * Check remap combos from the sub_ui-owned table using bitwise logic.
- * A combo matches when (keys_held & combo_mask) == combo_mask.
- * Longer (more specific) combos are checked first via reverse iteration.
+ * Evaluate fixed per-button remaps and emit up to two active outputs.
  *------------------------------------------------------------------------*/
-static uint8_t evaluate_remaps(uint32_t keys_held)
+static void remap_add_unique(uint8_t v, uint8_t *o1, uint8_t *o2)
 {
+    if (v == 0) return;
+    if (*o1 == v || *o2 == v) return;
+    if (*o1 == 0) { *o1 = v; return; }
+    if (*o2 == 0) { *o2 = v; return; }
+}
+
+static void evaluate_remaps(uint32_t keys_held, uint8_t *out1, uint8_t *out2)
+{
+    *out1 = 0;
+    *out2 = 0;
+
     int count = 0;
     const dsrd_remap_entry_t *table = sub_ui_get_remap_table(&count);
 
-    for (int i = count - 1; i >= 0; i--) {
+    for (int i = 0; i < count; i++) {
         uint32_t mask = table[i].ds_mask;
+        if (mask == 0) continue;
+
+        /* Per-button semantics: a row is active when its DS button is held. */
         if ((keys_held & mask) == mask) {
-            return table[i].virtual_output;
+            remap_add_unique(table[i].virtual_output, out1, out2);
+            remap_add_unique(sub_ui_get_secondary_output(i), out1, out2);
         }
     }
-    return 0;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -85,7 +97,11 @@ void dsrd_input_poll(void)
     s_telem.kbd_scancode = sub_ui_get_key();
 
     /* ---- Button remap evaluation ------------------------------------ */
-    s_telem.remap_id  = evaluate_remaps(keys_held);
+    uint8_t remap_primary = 0;
+    uint8_t remap_secondary = 0;
+    evaluate_remaps(keys_held, &remap_primary, &remap_secondary);
+    s_telem.remap_id  = remap_primary;
+    s_telem._pad      = remap_secondary;
     s_active_remap_id = s_telem.remap_id;
 
     /* ---- Runtime toggle combos -------------------------------------- */

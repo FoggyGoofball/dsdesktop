@@ -1,121 +1,51 @@
 #============================================================================
 # ds_client/Makefile
 #
-# DS Remote Desktop client — standard devkitARM NDS Makefile.
+# DS Remote Desktop client — combined ARM7 + ARM9 build.
 #
-# Uses the devkitARM ds_rules template, which:
-#   - Compiles ARM9 sources from SOURCES directories
-#   - Links against libnds9, libdswifi9, and auto-links calico
-#   - Bundles the calico default ARM7 binary (ds7_maine.elf)
-#   - Produces a .nds ROM via ndstool
-#
-# Prerequisites (all installed via devkitPro pacman):
-#   devkitARM, libnds, dswifi, calico, default-arm7, ndstool, dstools
+# This packages a custom ARM7 image together with the ARM9 client instead of
+# relying on the auto-bundled default ARM7. The goal is maximum compatibility
+# with older flashcart loaders that can freeze on some modern bundled images.
 #============================================================================
+
+.SUFFIXES:
 
 ifeq ($(strip $(DEVKITARM)),)
 $(error "Please set DEVKITARM in your environment. export DEVKITARM=<path to>devkitARM")
 endif
 
+export TARGET := dsremote
+export TOPDIR := $(CURDIR)
+
+GAME_TITLE := DS Remote Desktop
+GAME_SUBTITLE1 := NiFi streaming client
+GAME_SUBTITLE2 := github.com/ds-remote
+
 include $(DEVKITARM)/ds_rules
 
-#--------------------------------------------------------------------------
-# Project configuration
-#--------------------------------------------------------------------------
-TARGET		:=	dsremote
-BUILD		:=	build
-SOURCES		:=	arm9/source
-DATA		:=
-INCLUDES	:=	arm9/source ../common
+.PHONY: all checkarm7 checkarm9 clean
 
-GAME_TITLE	:=	DS Remote Desktop
-GAME_SUBTITLE1	:=	NiFi streaming client
-GAME_SUBTITLE2	:=	github.com/ds-remote
+all: checkarm7 checkarm9 $(TARGET).nds
 
-#--------------------------------------------------------------------------
-# Code generation options
-#--------------------------------------------------------------------------
-ARCH	:=	-march=armv5te -mtune=arm946e-s -mthumb
+checkarm7:
+	$(MAKE) -C arm7
 
-CFLAGS	:=	-g -Wall -Wextra -O2 -ffunction-sections -fdata-sections \
-			$(ARCH) $(INCLUDE) -DARM9
+checkarm9:
+	$(MAKE) -C arm9
 
-CXXFLAGS	:=	$(CFLAGS) -fno-rtti -fno-exceptions
-ASFLAGS		:=	-g $(ARCH)
-LDFLAGS		=	-specs=ds_arm9.specs -g $(ARCH) \
-			-Wl,-Map,$(notdir $*.map) -Wl,--gc-sections
+$(TARGET).nds : arm7/$(TARGET).elf arm9/$(TARGET).elf
+	ndstool -c $(TARGET).nds -h 0x200 -7 arm7/$(TARGET).elf -9 arm9/$(TARGET).elf \
+	-b $(GAME_ICON) "$(GAME_TITLE);$(GAME_SUBTITLE1);$(GAME_SUBTITLE2)"
+	@echo built ... $(notdir $@)
 
-#--------------------------------------------------------------------------
-# Libraries (order matters for the linker)
-#
-# -ldswifi9  : Wi-Fi / raw packet support
-# -lnds9     : libnds (console, input, video, sound, DMA, cache, etc.)
-#
-# calico_ds9 is auto-linked by ds_rules when -lnds9 is present.
-#--------------------------------------------------------------------------
-LIBS	:=	-ldswifi9 -lnds9
+arm7/$(TARGET).elf:
+	$(MAKE) -C arm7
 
-#--------------------------------------------------------------------------
-# Library search paths
-#--------------------------------------------------------------------------
-LIBDIRS	:=	$(LIBNDS)
-
-#--------------------------------------------------------------------------
-# Below this line is the standard devkitARM build machinery.
-# You should not normally need to edit it.
-#
-# IMPORTANT: The workspace path must NOT contain spaces for MSYS make.
-# If your path has spaces, create a junction:
-#   cmd /c mklink /J C:\dsrd "C:\path with spaces\project"
-# Then build from C:\dsrd\ds_client.
-#--------------------------------------------------------------------------
-ifneq ($(BUILD),$(notdir $(CURDIR)))
-
-export OUTPUT	:=	$(CURDIR)/$(TARGET)
-
-export VPATH	:=	$(foreach dir,$(SOURCES),$(CURDIR)/$(dir)) \
-					$(foreach dir,$(DATA),$(CURDIR)/$(dir))
-
-export DEPSDIR	:=	$(CURDIR)/$(BUILD)
-
-CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
-CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
-SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
-BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*)))
-
-ifeq ($(strip $(CPPFILES)),)
-	export LD	:=	$(CC)
-else
-	export LD	:=	$(CXX)
-endif
-
-export OFILES	:=	$(addsuffix .o,$(BINFILES)) \
-					$(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(SFILES:.s=.o)
-
-export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
-					$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
-					-I$(CURDIR)/$(BUILD)
-
-export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
-
-.PHONY: $(BUILD) clean
-
-$(BUILD):
-	@[ -d $@ ] || mkdir -p $@
-	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
+arm9/$(TARGET).elf:
+	$(MAKE) -C arm9
 
 clean:
+	$(MAKE) -C arm9 clean
+	$(MAKE) -C arm7 clean
 	@echo Cleaning...
-	@rm -fr $(BUILD) $(TARGET).elf $(TARGET).nds
-
-else
-
-DEPENDS	:=	$(OFILES:.o=.d)
-
-$(OUTPUT).nds: $(OUTPUT).elf
-
-$(OUTPUT).elf: $(OFILES)
-
--include $(DEPENDS)
-
-endif
+	@rm -f $(TARGET).nds
