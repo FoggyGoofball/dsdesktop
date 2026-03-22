@@ -1,51 +1,46 @@
 #============================================================================
 # ds_client/Makefile
 #
-# DS Remote Desktop client — combined ARM7 + ARM9 build.
+# DS Remote Desktop client — BlocksDS combined build.
 #
-# This packages a custom ARM7 image together with the ARM9 client instead of
-# relying on the auto-bundled default ARM7. The goal is maximum compatibility
-# with older flashcart loaders that can freeze on some modern bundled images.
+# ARM7: Uses BlocksDS pre-built arm7_dswifi.elf which includes
+#       installWifiFIFO + Wifi_Update + sound + input + system FIFOs.
+#       This is required for ARM9 dswifi calls to reach the hardware.
+#
+# ARM9: Custom build with dswifi9 raw 802.11 TX/RX.
 #============================================================================
 
-.SUFFIXES:
+BLOCKSDS      ?= /opt/wonderful/thirdparty/blocksds/core
+BLOCKSDSEXT   ?= /opt/wonderful/thirdparty/blocksds/external
 
-ifeq ($(strip $(DEVKITARM)),)
-$(error "Please set DEVKITARM in your environment. export DEVKITARM=<path to>devkitARM")
-endif
+NAME          := dsremote
 
-export TARGET := dsremote
-export TOPDIR := $(CURDIR)
+GAME_TITLE    := DS Remote Desktop
+GAME_SUBTITLE := NiFi streaming client
+GAME_AUTHOR   := github.com/ds-remote
+GAME_ICON     ?= $(BLOCKSDS)/sys/icon.gif
 
-GAME_TITLE := DS Remote Desktop
-GAME_SUBTITLE1 := NiFi streaming client
-GAME_SUBTITLE2 := github.com/ds-remote
+# BlocksDS pre-built ARM7 with dswifi7 support
+ARM7_ELF      := $(BLOCKSDS)/sys/arm7/main_core/arm7_dswifi.elf
 
-include $(DEVKITARM)/ds_rules
+MAKE          := make
+RM            := rm -rf
 
-.PHONY: all checkarm7 checkarm9 clean
+ROM           := $(NAME).nds
 
-all: checkarm7 checkarm9 $(TARGET).nds
+.PHONY: all clean arm9
 
-checkarm7:
-	$(MAKE) -C arm7
+all: $(ROM)
 
-checkarm9:
-	$(MAKE) -C arm9
+arm9:
+	$(MAKE) -f Makefile.arm9 --no-print-directory
 
-$(TARGET).nds : arm7/$(TARGET).elf arm9/$(TARGET).elf
-	ndstool -c $(TARGET).nds -h 0x200 -7 arm7/$(TARGET).elf -9 arm9/$(TARGET).elf \
-	-b $(GAME_ICON) "$(GAME_TITLE);$(GAME_SUBTITLE1);$(GAME_SUBTITLE2)"
-	@echo built ... $(notdir $@)
-
-arm7/$(TARGET).elf:
-	$(MAKE) -C arm7
-
-arm9/$(TARGET).elf:
-	$(MAKE) -C arm9
+$(ROM): arm9
+	@echo "  NDSTOOL $@"
+	$(BLOCKSDS)/tools/ndstool/ndstool -c $@ \
+		-7 $(ARM7_ELF) -9 build/arm9.elf \
+		-b $(GAME_ICON) "$(GAME_TITLE);$(GAME_SUBTITLE);$(GAME_AUTHOR)"
 
 clean:
-	$(MAKE) -C arm9 clean
-	$(MAKE) -C arm7 clean
-	@echo Cleaning...
-	@rm -f $(TARGET).nds
+	$(MAKE) -f Makefile.arm9 clean --no-print-directory
+	$(RM) $(ROM) build

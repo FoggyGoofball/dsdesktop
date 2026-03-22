@@ -7,6 +7,12 @@ endif
 
 include $(DEVKITARM)/ds_rules
 
+# BlocksDS libraries � use BlocksDS libnds + dswifi for API compatibility.
+# The pre-installed devkitPro libnds lacks dswifi7 and has ABI differences.
+BLOCKSDS   ?= /opt/wonderful/thirdparty/blocksds/core
+BDS_DSWIFI := $(BLOCKSDS)/libs/dswifi
+BDS_LIBNDS := $(BLOCKSDS)/libs/libnds
+
 BUILD    := build
 SOURCES  := source
 INCLUDES := source ../../common
@@ -16,14 +22,14 @@ GRAPHICS :=
 ARCH := -march=armv5te -mtune=arm946e-s -mthumb
 
 CFLAGS   := -g -Wall -Wextra -O2 -ffunction-sections -fdata-sections \
-            $(ARCH) $(INCLUDE) -DARM9
+			$(ARCH) $(INCLUDE) -DARM9
 CXXFLAGS := $(CFLAGS) -fno-rtti -fno-exceptions
 ASFLAGS  := -g $(ARCH)
-LDFLAGS  := -specs=ds_arm9.specs -g $(ARCH) \
+LDFLAGS  := -specs=$(BLOCKSDS)/sys/crts/ds_arm9.specs -g $(ARCH) \
 			-Wl,-Map,$(notdir $*.map) -Wl,--gc-sections
 
-LIBS := -ldswifi9 -lnds9
-LIBDIRS := $(LIBNDS) $(PORTLIBS)
+LIBS := -ldswifi9 -lnds9 -lc
+LIBDIRS := $(BDS_DSWIFI) $(BDS_LIBNDS) $(PORTLIBS)
 
 ifneq ($(BUILD),$(notdir $(CURDIR)))
 

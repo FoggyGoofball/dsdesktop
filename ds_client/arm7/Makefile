@@ -7,6 +7,10 @@ endif
 
 include $(DEVKITARM)/ds_rules
 
+# BlocksDS dswifi (provides dswifi7.h / libdswifi7.a that devkitPro libnds lacks)
+BLOCKSDS  ?= /opt/wonderful/thirdparty/blocksds/core
+BDS_DSWIFI := $(BLOCKSDS)/libs/dswifi
+
 BUILD    := build
 SOURCES  := source
 INCLUDES := source
@@ -15,13 +19,13 @@ DATA     :=
 ARCH := -march=armv4t -mtune=arm7tdmi -mthumb
 
 CFLAGS   := -g -Wall -Os -ffunction-sections -fdata-sections \
-            $(ARCH) $(INCLUDE) -DARM7
+			$(ARCH) $(INCLUDE) -DARM7
 CXXFLAGS := $(CFLAGS) -fno-rtti -fno-exceptions
 ASFLAGS  := -g $(ARCH)
 LDFLAGS  := -specs=ds_arm7.specs -g $(ARCH) -Wl,-Map,$(notdir $*).map
 
 LIBS := -ldswifi7 -lnds7
-LIBDIRS := $(LIBNDS)
+LIBDIRS := $(LIBNDS) $(BDS_DSWIFI)
 
 ifneq ($(BUILD),$(notdir $(CURDIR)))
 
