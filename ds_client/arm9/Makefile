@@ -19,8 +19,8 @@ CFLAGS   := -g -Wall -Wextra -O2 -ffunction-sections -fdata-sections \
             $(ARCH) $(INCLUDE) -DARM9
 CXXFLAGS := $(CFLAGS) -fno-rtti -fno-exceptions
 ASFLAGS  := -g $(ARCH)
-LDFLAGS  := -specs=$(DEVKITPRO)/calico/share/ds9-legacy.specs -g $(ARCH) \
-            -Wl,-Map,$(notdir $*.map) -Wl,--gc-sections
+LDFLAGS  := -specs=ds_arm9.specs -g $(ARCH) \
+			-Wl,-Map,$(notdir $*.map) -Wl,--gc-sections
 
 LIBS := -ldswifi9 -lnds9
 LIBDIRS := $(LIBNDS) $(PORTLIBS)

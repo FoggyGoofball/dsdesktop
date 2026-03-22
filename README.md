@@ -65,12 +65,12 @@ dsdesktop/
 │   ├── Makefile                    devkitARM build config
 │   ├── arm7/
 │   │   └── source/
-│   │       └── main.c              ARM7 runtime (custom combined build)
+│   │       └── main.c              ARM7 runtime (dswifi7 FIFO, touch, sound)
 │   ├── arm9/
 │   │   └── source/
 │   │       ├── main.c              Entry point, main event loop
 │   │       ├── config.h/.c         Runtime config (channel, audio, HMAC toggle)
-│   │       ├── nifi_net.h/.c       Calico/NiFi RX callback, circular buffers
+│   │       ├── nifi_net.h/.c       dswifi raw 802.11 TX/RX, circular buffers
 │   │       ├── video_decode.h/.c   RLE decompression, delta apply, LCD render
 │   │       ├── audio_stream.h/.c   Audio ring buffer, ARM7 sync
 │   │       ├── input.h/.c          Stylus, buttons, on-screen KB
@@ -130,7 +130,7 @@ dsdesktop/
 
 | Node       | Toolchain / SDK                                    | Notes                                                   |
 |------------|----------------------------------------------------|---------------------------------------------------------|
-| **DS**     | BlocksDS (latest)                                  | Includes libnds, dswifi, libcalico, libmbedtls         |
+| **DS**     | BlocksDS (latest)                                  | Includes libnds, dswifi (ARM7 + ARM9), libmbedtls      |
 | **Wii**    | devkitPPC r29+, libogc 2.x, libfat, libbte         | Real WD backend via `/dev/net/wd/command` IOS v21     |
 | **PC**     | MSVC 2022+ (Windows) or GCC 12+ (Linux)            | CMake 3.20+, SDL2 (optional), liblzo2, vJoy SDK        |
 
@@ -395,7 +395,7 @@ Before submitting PRs:
 - **FIX94** — wii-ds-rom-sender, Download Play exploitation.
 - **jpenny1993** — dsnifi template, event-driven NiFi abstractions.
 - **BlocksDS** / **devkitPro** — Modern DS/Wii toolchains.
-- **calico** — ARM7/ARM9 wireless stack on BlocksDS.
+- **calico** — ARM7/ARM9 wireless stack on BlocksDS (used during early development; replaced by dswifi in the current build).
 
 ---
 
